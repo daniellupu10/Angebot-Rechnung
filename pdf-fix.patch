@@ -1,0 +1,257 @@
+From 88e6617dd7e237984b7dceff336bc35928b56c01 Mon Sep 17 00:00:00 2001
+From: AI Studio Assistant <assistant@aistudio.google.com>
+Date: Mon, 7 Sep 2026 19:09:45 +0000
+Subject: [PATCH] Fix PDF export blank page and trailing empty page
+
+---
+ css/style.css | 26 ++++++++-------
+ index.html    |  5 ++-
+ js/app.js     | 87 ++++++++++++++++++++++++++++++++++-----------------
+ 3 files changed, 76 insertions(+), 42 deletions(-)
+
+diff --git a/css/style.css b/css/style.css
+index 6cba04f..2684a89 100644
+--- a/css/style.css
++++ b/css/style.css
+@@ -760,20 +760,20 @@ body {
+ #clean-pdf-document {
+     display: none;
+     width: 210mm;
+-    min-height: 297mm;
++    max-width: 210mm;
+     background: #ffffff;
+     color: #333333;
+     font-family: Arial, Helvetica, sans-serif;
+     font-size: 11pt;
+     line-height: 1.4;
+-    padding: 40px;
++    padding: 28px 36px 20px 36px;
+     box-sizing: border-box;
+ }
+ 
+ .clean-header {
+     display: flex;
+     justify-content: space-between;
+-    margin-bottom: 45px;
++    margin-bottom: 24px;
+ }
+ 
+ .clean-company-info {
+@@ -783,7 +783,7 @@ body {
+ }
+ 
+ .clean-client-address {
+-    margin-bottom: 35px;
++    margin-bottom: 20px;
+     font-size: 13px;
+     line-height: 1.4;
+ }
+@@ -797,14 +797,14 @@ body {
+ 
+ .clean-doc-details {
+     text-align: right;
+-    margin-bottom: 25px;
++    margin-bottom: 20px;
+     font-size: 12px;
+     line-height: 1.5;
+ }
+ 
+ .clean-h1-title {
+     font-size: 24px;
+-    margin-bottom: 20px;
++    margin-bottom: 16px;
+     border-bottom: 2px solid #4CAF50;
+     padding-bottom: 8px;
+     color: #2e7d32;
+@@ -816,7 +816,7 @@ body {
+ .clean-table {
+     width: 100%;
+     border-collapse: collapse;
+-    margin-bottom: 25px;
++    margin-bottom: 18px;
+ }
+ 
+ .clean-table th {
+@@ -830,7 +830,7 @@ body {
+ }
+ 
+ .clean-table td {
+-    padding: 9px 8px;
++    padding: 8px 8px;
+     border-bottom: 1px solid #eeeeee;
+     font-size: 11.5px;
+     vertical-align: top;
+@@ -839,7 +839,7 @@ body {
+ .clean-totals {
+     float: right;
+     width: 260px;
+-    margin-bottom: 20px;
++    margin-bottom: 16px;
+ }
+ 
+ .clean-total-row {
+@@ -860,8 +860,8 @@ body {
+ 
+ .clean-notes {
+     clear: both;
+-    margin-top: 30px;
+-    margin-bottom: 60px;
++    margin-top: 20px;
++    margin-bottom: 24px;
+     font-size: 11.5px;
+     line-height: 1.5;
+     color: #444444;
+@@ -1063,6 +1063,8 @@ body {
+         padding: 0 !important;
+     }
+ 
++    .app-container,
++    #app-main-shell,
+     .neu-sidebar, 
+     .neu-canvas, 
+     .catalog-modal-backdrop, 
+@@ -1086,7 +1088,7 @@ body {
+         max-width: 100% !important;
+         min-height: auto !important;
+         padding: 12mm 15mm !important;
+-        page-break-after: always;
++        page-break-after: auto;
+     }
+ 
+     @page {
+diff --git a/index.html b/index.html
+index 5327772..d751623 100644
+--- a/index.html
++++ b/index.html
+@@ -3,7 +3,10 @@
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Palnau Gartenbau GmbH - Rechnungs- & Angebots-Studio</title>
++    <title>Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH</title>
++    <meta name="description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
++    <meta property="og:title" content="Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH">
++    <meta property="og:description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
+     <link rel="stylesheet" href="css/style.css">
+     <!-- html2pdf.js for client-side clean PDF export -->
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+diff --git a/js/app.js b/js/app.js
+index 9d28f00..e8339f2 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -800,20 +800,44 @@ function exportToPdf() {
+     renderCleanDocument();
+     
+     const cleanElement = document.getElementById('clean-pdf-document');
++    if (!cleanElement) {
++        showToast("Fehler beim Vorbereiten des Dokuments.");
++        return;
++    }
+     const filename = `${appState.docNumber || 'Dokument'}_Palnau_Gartenbau.pdf`;
+ 
+     showToast("PDF wird generiert...");
+ 
+-    // Position clean document at top-left of viewport for high-quality snapshot capture
++    // Make clean document visible for natural layout flow in html2pdf container
++    // Do NOT set minHeight (which caused minor subpixel overflow to generate a blank 2nd page)
+     cleanElement.style.display = 'block';
+-    cleanElement.style.position = 'fixed';
+-    cleanElement.style.top = '0';
+-    cleanElement.style.left = '0';
++    cleanElement.style.position = 'static';
+     cleanElement.style.width = '794px';
+-    cleanElement.style.minHeight = '1123px';
+-    cleanElement.style.zIndex = '999999';
++    cleanElement.style.maxWidth = '794px';
++    cleanElement.style.margin = '0 auto';
+     cleanElement.style.backgroundColor = '#ffffff';
+ 
++    const resetCleanElementStyles = () => {
++        cleanElement.style.display = 'none';
++        cleanElement.style.position = '';
++        cleanElement.style.top = '';
++        cleanElement.style.left = '';
++        cleanElement.style.width = '';
++        cleanElement.style.maxWidth = '';
++        cleanElement.style.minHeight = '';
++        cleanElement.style.margin = '';
++        cleanElement.style.backgroundColor = '';
++        cleanElement.style.zIndex = '';
++    };
++
++    if (typeof html2pdf === 'undefined') {
++        console.warn("html2pdf library is unavailable, falling back to window.print()");
++        resetCleanElementStyles();
++        renderCleanDocument();
++        window.print();
++        return;
++    }
++
+     const opt = {
+         margin: [0, 0, 0, 0],
+         filename: filename,
+@@ -824,33 +848,38 @@ function exportToPdf() {
+             letterRendering: true,
+             scrollX: 0,
+             scrollY: 0,
+-            windowWidth: 794,
+             backgroundColor: '#ffffff'
+         },
+-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
++        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
++        pagebreak: { mode: ['css', 'legacy'] }
+     };
+ 
+-    html2pdf().set(opt).from(cleanElement).save().then(() => {
+-        cleanElement.style.display = 'none';
+-        cleanElement.style.position = '';
+-        cleanElement.style.top = '';
+-        cleanElement.style.left = '';
+-        cleanElement.style.width = '';
+-        cleanElement.style.minHeight = '';
+-        cleanElement.style.zIndex = '';
+-        showToast("PDF erfolgreich heruntergeladen!");
+-    }).catch(err => {
+-        cleanElement.style.display = 'none';
+-        cleanElement.style.position = '';
+-        cleanElement.style.top = '';
+-        cleanElement.style.left = '';
+-        cleanElement.style.width = '';
+-        cleanElement.style.minHeight = '';
+-        cleanElement.style.zIndex = '';
+-        console.error("PDF generation fallback", err);
+-        renderCleanDocument();
+-        window.print();
+-    });
++    html2pdf()
++        .set(opt)
++        .from(cleanElement)
++        .toPdf()
++        .get('pdf')
++        .then((pdf) => {
++            const totalPages = pdf.internal.getNumberOfPages();
++            // If an unwanted trailing white page is generated, safely remove it
++            if (totalPages > 1) {
++                pdf.deletePage(totalPages);
++            }
++        })
++        .save()
++        .then(() => {
++            resetCleanElementStyles();
++            showToast("PDF erfolgreich heruntergeladen!");
++        })
++        .catch(err => {
++            resetCleanElementStyles();
++            console.error("PDF generation fallback", err);
++            showToast("Fallback: Druckansicht wird geöffnet...");
++            setTimeout(() => {
++                renderCleanDocument();
++                window.print();
++            }, 300);
++        });
+ }
+ 
+ // Escape HTML
+-- 
+2.34.1
+

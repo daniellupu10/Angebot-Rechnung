@@ -1,0 +1,6 @@
+{
+  "name": "Rechnungs- & Angebots-Studio",
+  "description": "Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

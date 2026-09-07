@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH</title>
+    <meta name="description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
+    <meta property="og:title" content="Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH">
+    <meta property="og:description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- html2pdf.js for client-side clean PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+
+    <!-- ====================================================================
+         AUTHENTICATION LOCK SCREEN (PROTECTED EMPLOYEE ACCESS)
+         Password: Palnaugartenbaugmbh
+         ==================================================================== -->
+    <div id="auth-lock-screen" class="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-brand-badge">🌿</div>
+            <h2 class="auth-company-name">Palnau Gartenbau GmbH</h2>
+            <p class="auth-portal-title">Mitarbeiter-Portal • Rechnungs- & Angebots-Studio</p>
+            
+            <form id="auth-form" class="auth-form" onsubmit="handleAuthSubmit(event)">
+                <div class="auth-field-group">
+                    <label for="auth-password-input" class="auth-field-label">Betriebspasswort eingeben</label>
+                    <div class="auth-input-container">
+                        <span class="auth-input-prefix">🔒</span>
+                        <input 
+                            type="password" 
+                            id="auth-password-input" 
+                            class="auth-input-field" 
+                            placeholder="Passwort..." 
+                            autocomplete="current-password"
+                            required
+                        >
+                        <button type="button" id="btn-toggle-password" class="auth-eye-toggle" title="Passwort anzeigen/verbergen">Anzeigen</button>
+                    </div>
+                </div>
+
+                <div id="auth-error-msg" class="auth-error-badge" style="display: none;">
+                    Falsches Passwort. Bitte prüfen Sie Ihre Eingabe.
+                </div>
+
+                <button type="submit" id="btn-submit-auth" class="auth-login-btn">
+                    Editor freischalten
+                </button>
+            </form>
+
+            <div class="auth-disclaimer">
+                Geschützter interner Bereich für Baustellen-Mitarbeiter der Palnau Gartenbau GmbH.
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         MAIN APPLICATION SHELL
+         ==================================================================== -->
+    <div class="app-container" id="app-main-shell">
+
+        <!-- Mobile Sticky Top Bar (Smartphones & Tablets) -->
+        <header class="mobile-top-bar">
+            <div class="mobile-brand">
+                <span class="mobile-brand-icon">🌿</span>
+                <div class="mobile-brand-meta">
+                    <span class="mobile-brand-title">Palnau Gartenbau</span>
+                    <span class="mobile-doc-badge" id="mobile-doc-badge">RECHNUNG</span>
+                </div>
+            </div>
+            <div class="mobile-top-actions">
+                <button class="mobile-header-btn mobile-btn-pdf" id="mobile-btn-pdf" title="PDF Export">
+                    PDF Export
+                </button>
+                <button class="mobile-header-btn mobile-btn-lock" id="mobile-btn-lock" title="App sperren / Abmelden">
+                    Sperren
+                </button>
+            </div>
+        </header>
+
+        <!-- Mobile Navigation Tabs (Editor vs. Actions/Sidebar) -->
+        <nav class="mobile-nav-tabs">
+            <button class="mobile-nav-tab active" id="tab-nav-editor" onclick="switchMobileTab('editor')">
+                Beleg-Editor
+            </button>
+            <button class="mobile-nav-tab" id="tab-nav-actions" onclick="switchMobileTab('actions')">
+                Werkzeuge & Vorlagen
+            </button>
+        </nav>
+
+        <!-- ====================================================================
+             LEFT NEUMORPHIC SIDEBAR NAVIGATION
+             ==================================================================== -->
+        <aside class="neu-sidebar" id="app-sidebar">
+
+            <!-- 1. Brand Profile Card -->
+            <div class="neu-card">
+                <div class="brand-profile-card">
+                    <div class="brand-neu-icon">🌿</div>
+                    <div class="brand-profile-meta">
+                        <h1>Palnau Gartenbau GmbH</h1>
+                        <div class="brand-owner-badge">Geschäftsführer: Andrei Priala</div>
+                    </div>
+                </div>
+
+                <!-- Fixed Company Data Display -->
+                <div class="fixed-details-list">
+                    <span>📍 Reihelberg 3, 75210 Keltern-Dietlingen</span>
+                    <span>📞 07231 466641</span>
+                    <span>✉️ gartenbauu@gmail.com</span>
+                    <span>💳 IBAN: DE66 6665 0085 0005 9928 34</span>
+                </div>
+            </div>
+
+            <!-- 2. Neumorphic Segmented Mode Switcher (Rechnung / Angebot) -->
+            <div class="neu-card">
+                <div class="neu-card-header">
+                    <span class="neu-card-title">Beleg-Art</span>
+                </div>
+                <div class="neu-segmented-switch">
+                    <button class="neu-switch-btn active invoice-active" id="btn-mode-rechnung" data-type="rechnung">
+                        Rechnung
+                    </button>
+                    <button class="neu-switch-btn quote-active" id="btn-mode-angebot" data-type="angebot">
+                        Angebot
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. Primary Export & Catalog Actions -->
+            <div class="neu-card">
+                <div class="neu-card-header">
+                    <span class="neu-card-title">Aktionen</span>
+                </div>
+
+                <button class="neu-btn neu-btn-primary" id="btn-download-pdf" style="width: 100%; padding: 12px;">
+                    PDF exportieren
+                </button>
+
+                <button class="neu-btn neu-btn-catalog" id="btn-open-catalog-modal" style="width: 100%;">
+                    Leistungskatalog (20+)
+                </button>
+
+                <div class="action-buttons-grid">
+                    <button class="neu-btn" id="btn-load-sample" title="Beispieldaten einfügen">
+                        Vorlage laden
+                    </button>
+                    <button class="neu-btn" id="btn-reset" title="Formular leeren">
+                        Neu / Leeren
+                    </button>
+                </div>
+
+                <button class="neu-btn" id="btn-print" style="width: 100%;">
+                    Drucken / Print
+                </button>
+            </div>
+
+            <!-- 4. Smart Recommendations (Neumorphic Chips) -->
+            <div class="neu-card" id="smart-recommendations-card">
+                <div class="neu-card-header">
+                    <span class="neu-card-title">Smarte Vorschläge</span>
+                </div>
+                <div class="smart-chips-flow" id="smart-dock-chips">
+                    <!-- Dynamic recommendations populated by JS -->
+                </div>
+            </div>
+
+            <!-- 5. Quick Notes & Terms Presets -->
+            <div class="neu-card">
+                <div class="neu-card-header">
+                    <span class="neu-card-title">Zahlungshinweise</span>
+                </div>
+                <div class="notes-preset-cluster">
+                    <button class="preset-chip" onclick="setNotesPreset('14tage')">14 Tage</button>
+                    <button class="preset-chip" onclick="setNotesPreset('30tage')">30 Tage (Angebot)</button>
+                    <button class="preset-chip" onclick="setNotesPreset('skonto')">2% Skonto</button>
+                    <button class="preset-chip" onclick="setNotesPreset('bar')">Bar bei Abnahme</button>
+                </div>
+            <!-- 6. App Security / Logout -->
+            <div class="neu-card" style="margin-top: auto;">
+                <button class="neu-btn" id="btn-sidebar-lock" style="width: 100%; color: #dc2626; border-color: rgba(239, 68, 68, 0.3);">
+                    App sperren
+                </button>
+            </div>
+
+        </aside>
+
+        <!-- ====================================================================
+             MAIN NEUMORPHIC CANVAS WITH LIVE-EDIT A4 SHEET
+             ==================================================================== -->
+        <main class="neu-canvas" id="app-canvas">
+
+            <!-- The Living Interactive A4 Document Sheet -->
+            <div class="a4-interactive-sheet" id="invoice-preview">
+
+                <!-- Header with Fixed Company Info -->
+                <div class="doc-header-row">
+                    <div class="fixed-company-brand">
+                        <strong>Palnau Gartenbau GmbH</strong>
+                        Reihelberg 3, 75210 Keltern-Dietlingen<br>
+                        Tel: 07231 466641 | Email: gartenbauu@gmail.com
+                    </div>
+                </div>
+
+                <!-- Client Address with Underlined Sender Line -->
+                <div class="client-address-section">
+                    <div class="sender-return-line">
+                        Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen
+                    </div>
+                    <div>
+                        <input type="text" id="doc-client-name" class="inline-doc-input client-name-input" placeholder="Kundenname / Firma eingeben (z. B. Familie Weber)">
+                    </div>
+                    <div>
+                        <input type="text" id="doc-client-street" class="inline-doc-input" placeholder="Straße & Hausnummer (z. B. Sonnenhang 14)">
+                    </div>
+                    <div>
+                        <input type="text" id="doc-client-zipcity" class="inline-doc-input" placeholder="PLZ & Ort (z. B. 75179 Pforzheim)">
+                    </div>
+                </div>
+
+                <!-- Document Details (Right Aligned) -->
+                <div class="doc-meta-section">
+                    <div class="meta-row">
+                        <strong id="doc-number-label">Rechnung Nr.:</strong>
+                        <input type="text" id="doc-meta-number" class="inline-meta-input" style="width: 140px; font-weight: bold;">
+                    </div>
+                    <div class="meta-row">
+                        <strong>Datum:</strong>
+                        <input type="text" id="doc-meta-date" class="inline-meta-input" style="width: 100px;">
+                    </div>
+                    <div class="meta-row">
+                        <strong id="doc-period-label">Leistungszeitraum:</strong>
+                        <input type="text" id="doc-meta-period" class="inline-meta-input" style="width: 140px;" placeholder="z. B. März 2026">
+                    </div>
+                    <div class="meta-row" style="font-size: 11px; color: #666;">
+                        <span>MwSt-Satz:</span>
+                        <select id="doc-meta-taxrate" class="item-select-field" style="font-size: 11px;">
+                            <option value="19">19% MwSt</option>
+                            <option value="7">7% MwSt</option>
+                            <option value="0">0% Steuerfrei (§19)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- H1 Document Heading -->
+                <h1 id="doc-main-title" class="doc-title-heading">RECHNUNG</h1>
+
+                <!-- Items Table -->
+                <table class="doc-items-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 32px; text-align: center;">Pos.</th>
+                            <th>Beschreibung</th>
+                            <th style="width: 60px; text-align: right;">Menge</th>
+                            <th style="width: 50px; text-align: center;">Einheit</th>
+                            <th style="width: 80px; text-align: right;">Einzelpreis</th>
+                            <th style="width: 85px; text-align: right;">Gesamt</th>
+                            <th style="width: 25px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="doc-table-body">
+                        <!-- Dynamic Table Rows populated by JS -->
+                    </tbody>
+                </table>
+
+                <!-- Add Row / Quick Open Catalog Buttons -->
+                <div class="add-table-row-container">
+                    <button class="btn-add-table-item" id="btn-table-open-catalog">
+                        Leistung aus Katalog wählen (20+)
+                    </button>
+                    <button class="btn-add-table-item" id="btn-table-add-custom" style="color: #475569; border-color: #cbd5e1;">
+                        Freie Position anlegen
+                    </button>
+                </div>
+
+                <!-- Totals Box -->
+                <div class="doc-totals-container">
+                    <div class="totals-entry">
+                        <span>Zwischensumme (Netto):</span>
+                        <span id="doc-net-total">0,00 €</span>
+                    </div>
+                    <div class="totals-entry">
+                        <span id="doc-tax-label">Umsatzsteuer 19%:</span>
+                        <span id="doc-tax-amount">0,00 €</span>
+                    </div>
+                    <div class="totals-entry grand-total">
+                        <span id="doc-gross-label">Rechnungsbetrag:</span>
+                        <span id="doc-gross-total">0,00 €</span>
+                    </div>
+                </div>
+
+                <!-- Notes & Payment Terms -->
+                <div class="doc-notes-container">
+                    <textarea id="doc-notes-input" class="doc-notes-textarea" rows="2" placeholder="Zahlungsbedingungen oder Gültigkeitshinweise eingeben..."></textarea>
+                </div>
+
+                <!-- Footer (3 Columns with Fixed Bank & Contact Data) -->
+                <div class="doc-footer-container">
+                    <div class="footer-cols-grid">
+                        <div class="col">
+                            <strong>Bankverbindung:</strong><br>
+                            Sparkasse Pforzheim Calw<br>
+                            IBAN: DE66 6665 0085 0005 9928 34<br>
+                            BIC: PFORDE66XXX
+                        </div>
+                        <div class="col">
+                            <strong>Steuerdaten:</strong><br>
+                            Steuernummer: 123/456/78901<br>
+                            USt-ID: DE987654321
+                        </div>
+                        <div class="col">
+                            <strong>Geschäftsführer:</strong><br>
+                            Andrei Priala<br>
+                            Tel: 07231 466641 | gartenbauu@gmail.com
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Mobile Quick Actions Dock (Sticky at bottom on smartphones) -->
+            <div class="mobile-floating-dock" id="mobile-floating-dock">
+                <button class="mobile-dock-btn" id="mobile-dock-catalog">
+                    Katalog
+                </button>
+                <button class="mobile-dock-btn mobile-dock-btn-primary" id="mobile-dock-pdf">
+                    PDF exportieren
+                </button>
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- ====================================================================
+         PRISTINE CLEAN EXPORT CONTAINER (FOR CLEAN VECTOR PDF OUTPUT)
+         ==================================================================== -->
+    <div id="clean-pdf-document">
+        <!-- Rendered dynamically before PDF export or print -->
+    </div>
+
+    <!-- ====================================================================
+         NEUMORPHIC SERVICE CATALOG COMMAND PALETTE MODAL
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="catalog-modal">
+        <div class="catalog-modal-window">
+            
+            <div class="modal-header-bar">
+                <h2>Gartenbau Leistungskatalog</h2>
+                <button class="neu-btn" id="btn-close-catalog-modal" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <div class="modal-search-wrapper">
+                <input type="text" id="modal-catalog-search" class="neu-input" placeholder="Leistung suchen (z.B. Heckenschnitt, Baumpflege, Rollrasen)...">
+            </div>
+
+            <div class="modal-category-tabs" id="modal-category-tabs">
+                <button class="modal-cat-tab active" data-cat="all">Alle Leistungen</button>
+                <button class="modal-cat-tab" data-cat="Pflege">Pflege & Schnitt</button>
+                <button class="modal-cat-tab" data-cat="Baumpflege">Baumarbeiten</button>
+                <button class="modal-cat-tab" data-cat="Rasen">Rasenpflege</button>
+                <button class="modal-cat-tab" data-cat="Bau & Gestaltung">Gartenbau & Pflaster</button>
+                <button class="modal-cat-tab" data-cat="Pflanzung">Pflanzung</button>
+            </div>
+
+            <div class="modal-cards-scroll-area" id="modal-cards-container">
+                <!-- Service Cards injected via JS -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="studio-toast">Hinweis</div>
+
+    <!-- Scripts -->
+    <script src="js/data.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
