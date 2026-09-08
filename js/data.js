@@ -15,7 +15,7 @@ const FIXED_COMPANY_DATA = Object.freeze({
     phone: "Tel: 07231 466641",
     email: "gartenbauu@gmail.com",
     website: "www.palnau-gartenbau.de",
-    taxNumber: "123/456/78901",
+    taxNumber: "41413-45017",
     vatId: "DE987654321",
     bankName: "Sparkasse Pforzheim Calw",
     iban: "DE66 6665 0085 0005 9928 34",

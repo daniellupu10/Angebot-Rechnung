@@ -594,7 +594,7 @@ function renderCleanDocument() {
                 </div>
                 <div>
                     <strong>Steuerdaten:</strong><br>
-                    Steuernummer: 123/456/78901<br>
+                    Steuernummer: 41413-45017<br>
                     USt-ID: DE987654321
                 </div>
                 <div>
