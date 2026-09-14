@@ -62,6 +62,51 @@ function showToast(message) {
     }, 2500);
 }
 
+// Universal In-App Confirmation Modal (100% Iframe & Cross-Device Compatible)
+let activeConfirmCallback = null;
+
+window.showAppConfirm = function(message, onConfirm, options = {}) {
+    if (typeof onConfirm !== 'function') return;
+    const modal = document.getElementById('app-confirm-modal');
+    if (!modal) {
+        // Safe fallback if modal element is not in DOM
+        onConfirm();
+        return;
+    }
+
+    const titleEl = document.getElementById('confirm-modal-title');
+    const msgEl = document.getElementById('confirm-modal-message');
+    const okBtn = document.getElementById('confirm-modal-ok-btn');
+    const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
+
+    if (titleEl) titleEl.textContent = options.title || "Löschen bestätigen";
+    if (msgEl) msgEl.textContent = message;
+    if (okBtn) {
+        okBtn.textContent = options.confirmText || "Unwiderruflich löschen";
+        okBtn.style.backgroundColor = options.btnColor || "#dc2626";
+        okBtn.style.color = "#ffffff";
+    }
+    if (cancelBtn) cancelBtn.textContent = options.cancelText || "Abbrechen";
+
+    activeConfirmCallback = onConfirm;
+
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        modal.classList.add('open');
+    });
+};
+
+window.closeAppConfirm = function() {
+    const modal = document.getElementById('app-confirm-modal');
+    if (modal) {
+        modal.classList.remove('open');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 150);
+    }
+    activeConfirmCallback = null;
+};
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthOnLoad();
@@ -71,6 +116,31 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     updateAllAppStatesAndBadges();
 });
+
+// Universal Cross-Device Cloud Sync Event Listener
+window.onPalnauCloudDataUpdated = function(info) {
+    console.log("[Palnau] Remote cloud sync applied. Refreshing screens...", info);
+    try {
+        if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+        if (typeof renderClientsView === 'function') renderClientsView();
+        if (typeof renderQuartersView === 'function') renderQuartersView();
+        if (typeof renderERechnungHub === 'function') renderERechnungHub();
+        if (typeof renderLoansView === 'function') renderLoansView();
+        if (typeof renderCatalogView === 'function') renderCatalogView();
+        if (typeof updateAllAppStatesAndBadges === 'function') updateAllAppStatesAndBadges();
+
+        // If an invoice is currently open in the generator, verify it still exists or was updated
+        if (appState && appState.activeArchiveId) {
+            const archive = getInvoicesArchive();
+            const matching = archive.find(inv => String(inv.id) === String(appState.activeArchiveId));
+            if (matching && typeof editInvoiceInGenerator === 'function') {
+                editInvoiceInGenerator(matching.id);
+            }
+        }
+    } catch (e) {
+        console.warn("Error refreshing views on cloud update:", e);
+    }
+};
 
 function initApp() {
     const saved = localStorage.getItem('palnau_neu_studio_state');
@@ -318,7 +388,7 @@ function renderTable() {
             </td>
 
             <td class="col-delete" style="text-align: center;">
-                <button type="button" class="row-action-delete" title="Position löschen" onclick="removeItemFromDoc(${index})">✕</button>
+                <button type="button" class="row-action-delete" title="Position löschen" onclick="event.stopPropagation(); removeItemFromDoc(${index}); return false;">✕</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -707,11 +777,7 @@ function setupEventListeners() {
         showToast("Beispiel-Vorlage eingefügt");
     });
     document.getElementById('btn-reset').addEventListener('click', () => {
-        if (confirm("Möchten Sie alle Felder leeren und ein neues Dokument starten?")) {
-            startCleanState();
-            renderAll();
-            showToast("Neuer Beleg gestartet");
-        }
+        resetCurrentDoc();
     });
     document.getElementById('btn-print').addEventListener('click', () => {
         renderCleanDocument();
@@ -779,6 +845,16 @@ function setupEventListeners() {
 
     // Auth Form Submit
     document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
+
+    // Universal Confirmation Modal OK Button
+    document.getElementById('confirm-modal-ok-btn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const cb = activeConfirmCallback;
+        closeAppConfirm();
+        if (typeof cb === 'function') {
+            cb();
+        }
+    });
 }
 
 // Load Sample Data (Optional)
@@ -998,40 +1074,44 @@ function togglePasswordVisibility() {
 }
 
 function lockStudio() {
-    if (confirm("Möchten Sie das Studio sperren und sich abmelden?")) {
-        localStorage.removeItem('palnau_studio_auth');
-        sessionStorage.removeItem('palnau_studio_auth');
-        
-        const screens = [
-            'app-launcher-menu', 
-            'app-invoices-overview', 
-            'app-main-shell', 
-            'app-erechnung-hub', 
-            'app-catalog-view', 
-            'app-clients-view', 
-            'app-quarters-view'
-        ];
-        screens.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-        });
+    showAppConfirm(
+        "Möchten Sie das Studio sperren und sich abmelden?",
+        () => {
+            localStorage.removeItem('palnau_studio_auth');
+            sessionStorage.removeItem('palnau_studio_auth');
+            
+            const screens = [
+                'app-launcher-menu', 
+                'app-invoices-overview', 
+                'app-main-shell', 
+                'app-erechnung-hub', 
+                'app-catalog-view', 
+                'app-clients-view', 
+                'app-quarters-view'
+            ];
+            screens.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
 
-        const lockScreen = document.getElementById('auth-lock-screen');
-        const input = document.getElementById('auth-password-input');
-        const errorMsg = document.getElementById('auth-error-msg');
+            const lockScreen = document.getElementById('auth-lock-screen');
+            const input = document.getElementById('auth-password-input');
+            const errorMsg = document.getElementById('auth-error-msg');
 
-        if (errorMsg) errorMsg.style.display = 'none';
-        if (input) input.value = '';
+            if (errorMsg) errorMsg.style.display = 'none';
+            if (input) input.value = '';
 
-        if (lockScreen) {
-            lockScreen.style.display = 'flex';
-            setTimeout(() => {
-                lockScreen.classList.remove('hidden');
-                if (input) input.focus();
-            }, 20);
-        }
-        showToast("Studio gesperrt.");
-    }
+            if (lockScreen) {
+                lockScreen.style.display = 'flex';
+                setTimeout(() => {
+                    lockScreen.classList.remove('hidden');
+                    if (input) input.focus();
+                }, 20);
+            }
+            showToast("Studio gesperrt.");
+        },
+        { title: "Studio sperren", confirmText: "Sperren & Abmelden", btnColor: "#475569" }
+    );
 }
 
 // ==========================================================================
@@ -1200,6 +1280,9 @@ window.saveInvoiceToArchive = function(invoiceData) {
 
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
     updateAllAppStatesAndBadges();
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
     return archive;
 };
 
@@ -1247,33 +1330,42 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
 window.deleteInvoiceFromArchive = function(invoiceId) {
     if (!invoiceId) return;
     const archive = getInvoicesArchive();
-    const target = archive.find(inv => inv.id === invoiceId);
-    const docNum = target ? target.docNumber : "diese Rechnung";
+    const target = archive.find(inv => String(inv.id) === String(invoiceId));
+    const docNum = target ? target.docNumber : `Beleg #${invoiceId}`;
 
-    if (confirm(`Sind Sie sicher, dass Sie ${docNum} dauerhaft löschen möchten?`)) {
-        markInvoiceAsDeleted(invoiceId, target ? target.docNumber : null);
-        const updated = archive.filter(inv => inv.id !== invoiceId);
-        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
-
-        // If the deleted invoice was currently open in editor, clear its reference
-        if (appState.activeArchiveId === invoiceId) {
-            appState.activeArchiveId = null;
-            const badge = document.getElementById('gen-active-status-badge');
-            if (badge) {
-                badge.textContent = "Modus: Neuer Beleg";
-                badge.style.borderColor = '';
-                badge.style.color = '';
+    showAppConfirm(
+        `Sind Sie sicher, dass Sie den Beleg "${docNum}" dauerhaft aus dem Rechnungsarchiv löschen möchten?`,
+        () => {
+            markInvoiceAsDeleted(invoiceId, target ? target.docNumber : null);
+            const updated = archive.filter(inv => String(inv.id) !== String(invoiceId));
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+                window.PalnauCloudSync.pushLocalToCloud();
             }
-        }
 
-        if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
-        if (typeof renderClientsView === 'function') renderClientsView();
-        if (typeof renderQuartersView === 'function') renderQuartersView();
-        if (typeof renderERechnungHub === 'function') renderERechnungHub();
-        if (typeof renderAll === 'function') renderAll();
-        updateAllAppStatesAndBadges();
-        showToast(`${docNum} erfolgreich gelöscht.`);
-    }
+            // If the deleted invoice was currently open in editor, clear its reference
+            if (appState.activeArchiveId && String(appState.activeArchiveId) === String(invoiceId)) {
+                appState.activeArchiveId = null;
+                const badge = document.getElementById('gen-active-status-badge');
+                if (badge) {
+                    badge.textContent = "Modus: Neuer Beleg";
+                    badge.style.borderColor = '';
+                    badge.style.color = '';
+                }
+                const btnDeleteActive = document.getElementById('btn-delete-active-doc');
+                if (btnDeleteActive) btnDeleteActive.style.display = 'none';
+            }
+
+            if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+            if (typeof renderClientsView === 'function') renderClientsView();
+            if (typeof renderQuartersView === 'function') renderQuartersView();
+            if (typeof renderERechnungHub === 'function') renderERechnungHub();
+            if (typeof renderAll === 'function') renderAll();
+            updateAllAppStatesAndBadges();
+            showToast(`${docNum} erfolgreich gelöscht.`);
+        },
+        { title: "Beleg löschen" }
+    );
 };
 
 window.deleteClient = function(clientName) {
@@ -1286,34 +1378,45 @@ window.deleteClient = function(clientName) {
         ? `Möchten Sie den Kunden "${clientName}" und alle ${count} zugehörigen Belege wirklich unwiderruflich löschen?`
         : `Möchten Sie den Kunden "${clientName}" wirklich aus der Kartei löschen?`;
 
-    if (!confirm(confirmMsg)) return;
+    showAppConfirm(
+        confirmMsg,
+        () => {
+            clientInvoices.forEach(inv => {
+                markInvoiceAsDeleted(inv.id, inv.docNumber);
+            });
 
-    clientInvoices.forEach(inv => {
-        markInvoiceAsDeleted(inv.id, inv.docNumber);
-    });
+            const updated = archive.filter(inv => !(inv.client && inv.client.name === clientName));
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+                window.PalnauCloudSync.pushLocalToCloud();
+            }
 
-    const updated = archive.filter(inv => !(inv.client && inv.client.name === clientName));
-    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+            if (appState && appState.client && appState.client.name === clientName) {
+                appState.activeArchiveId = null;
+            }
 
-    if (appState && appState.client && appState.client.name === clientName) {
-        appState.activeArchiveId = null;
-    }
-
-    renderClientsView();
-    if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
-    if (typeof renderQuartersView === 'function') renderQuartersView();
-    if (typeof renderERechnungHub === 'function') renderERechnungHub();
-    if (typeof renderAll === 'function') renderAll();
-    updateAllAppStatesAndBadges();
-    showToast(`Kunde "${clientName}" wurde erfolgreich gelöscht.`);
+            renderClientsView();
+            if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+            if (typeof renderQuartersView === 'function') renderQuartersView();
+            if (typeof renderERechnungHub === 'function') renderERechnungHub();
+            if (typeof renderAll === 'function') renderAll();
+            updateAllAppStatesAndBadges();
+            showToast(`Kunde "${clientName}" wurde erfolgreich gelöscht.`);
+        },
+        { title: "Kunde löschen" }
+    );
 };
 
 window.resetCurrentDoc = function() {
-    if (confirm("Möchten Sie alle Felder leeren und ein neues Dokument starten?")) {
-        startCleanState();
-        renderAll();
-        showToast("Formular geleert – Neuer Beleg angelegt.");
-    }
+    showAppConfirm(
+        "Möchten Sie alle Felder leeren und ein neues Dokument starten?",
+        () => {
+            startCleanState();
+            renderAll();
+            showToast("Formular geleert – Neuer Beleg angelegt.");
+        },
+        { title: "Dokument leeren", confirmText: "Formular leeren", btnColor: "#e11d48" }
+    );
 };
 
 window.deleteCurrentActiveInvoice = function() {
@@ -2296,6 +2399,9 @@ window.saveCustomServiceToCatalog = function() {
     }
     customItems.unshift(newService);
     localStorage.setItem('palnau_custom_catalog', JSON.stringify(customItems));
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
 
     // Reset inputs
     nameInput.value = "";
@@ -2309,16 +2415,24 @@ window.saveCustomServiceToCatalog = function() {
 
 window.deleteCustomCatalogItem = function(itemId) {
     if (!itemId) return;
-    if (!confirm("Möchten Sie diese Leistung wirklich aus dem Katalog löschen?")) return;
-    let customItems = [];
-    const raw = localStorage.getItem('palnau_custom_catalog');
-    if (raw) {
-        try { customItems = JSON.parse(raw) || []; } catch (e) {}
-    }
-    customItems = customItems.filter(it => it.id !== itemId);
-    localStorage.setItem('palnau_custom_catalog', JSON.stringify(customItems));
-    renderCatalogView();
-    showToast("Leistung aus dem Katalog gelöscht.");
+    showAppConfirm(
+        "Möchten Sie diese Leistung wirklich aus dem Katalog löschen?",
+        () => {
+            let customItems = [];
+            const raw = localStorage.getItem('palnau_custom_catalog');
+            if (raw) {
+                try { customItems = JSON.parse(raw) || []; } catch (e) {}
+            }
+            customItems = customItems.filter(it => it.id !== itemId);
+            localStorage.setItem('palnau_custom_catalog', JSON.stringify(customItems));
+            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+                window.PalnauCloudSync.pushLocalToCloud();
+            }
+            renderCatalogView();
+            showToast("Leistung aus dem Katalog gelöscht.");
+        },
+        { title: "Leistung löschen" }
+    );
 };
 
 // ==========================================================================
@@ -3097,6 +3211,9 @@ window.saveLoanData = function(data) {
     if (typeof renderLoansView === 'function') {
         renderLoansView();
     }
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
 };
 
 let loanFilterPot = 'all'; // 'all' | 'bga' | 'betriebsmittel' | 'uebernahme'
@@ -3506,13 +3623,17 @@ window.handleSaveLoanEntry = function(event) {
 
 window.deleteLoanEntry = function(entryId) {
     if (!entryId) return;
-    if (!confirm("Möchten Sie diesen Entnahmeposten wirklich unwiderruflich löschen?")) return;
-
-    const loanData = getLoanData();
-    loanData.entries = (loanData.entries || []).filter(e => e.id !== entryId);
-    saveLoanData(loanData);
-    if (typeof renderLoansView === 'function') renderLoansView();
-    showToast("Entnahmeposten gelöscht.");
+    showAppConfirm(
+        "Möchten Sie diesen Entnahmeposten wirklich unwiderruflich löschen?",
+        () => {
+            const loanData = getLoanData();
+            loanData.entries = (loanData.entries || []).filter(e => String(e.id) !== String(entryId));
+            saveLoanData(loanData);
+            if (typeof renderLoansView === 'function') renderLoansView();
+            showToast("Entnahmeposten gelöscht.");
+        },
+        { title: "Entnahmeposten löschen" }
+    );
 };
 
 window.handleDeleteCurrentLoanEntry = function() {

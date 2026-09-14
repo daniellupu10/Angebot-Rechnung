@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write for Palnau Gartenbau Studio synced collections across user devices
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

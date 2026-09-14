@@ -1,0 +1,33 @@
+{
+  "entities": {
+    "invoices": {
+      "description": "Archived and active invoices created by the business across devices",
+      "fields": {
+        "id": { "type": "string", "description": "Unique invoice ID" },
+        "docType": { "type": "string", "description": "Document type: Rechnung, Angebot, etc." },
+        "docNumber": { "type": "string", "description": "Sequential document number" },
+        "date": { "type": "string", "description": "Invoice date YYYY-MM-DD" },
+        "dueDate": { "type": "string", "description": "Due date" },
+        "serviceDate": { "type": "string", "description": "Service execution date or period" },
+        "status": { "type": "string", "description": "Status: Entwurf, Gestellt, Bezahlt, Storniert" },
+        "paidDate": { "type": "string", "description": "Date when paid" },
+        "client": { "type": "map", "description": "Client name, company, street, city, email, phone" },
+        "items": { "type": "list", "description": "Array of invoice line items" },
+        "taxRate": { "type": "number", "description": "VAT rate percentage (e.g. 19)" },
+        "notes": { "type": "string", "description": "Footer notes and payment conditions" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
+      }
+    },
+    "workspace_sync": {
+      "description": "Full cross-device synchronization snapshot document",
+      "fields": {
+        "invoicesArchive": { "type": "list", "description": "Full archive of saved invoices" },
+        "deletedInvoices": { "type": "list", "description": "List of deleted invoice IDs to prevent resurrecting" },
+        "loanData": { "type": "map", "description": "KfW Darlehen data and usage records" },
+        "customCatalog": { "type": "list", "description": "Custom catalog items added by the user" },
+        "lastUpdated": { "type": "string", "description": "ISO timestamp of last sync" },
+        "deviceAgent": { "type": "string", "description": "User agent or device identifier" }
+      }
+    }
+  }
+}

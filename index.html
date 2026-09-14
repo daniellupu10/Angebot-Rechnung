@@ -91,6 +91,10 @@
 
             <!-- Right Controls: Status & Profile -->
             <div class="launcher-top-right">
+                <div id="cloud-sync-status-badge" class="cloud-sync-status-badge status-connecting" onclick="if(window.PalnauCloudSync) window.PalnauCloudSync.forceSyncNow()" title="Cross-Device Cloud Sync aktiv (Firebase Firestore). Klicken für manuellen Sync.">
+                    <span class="sync-dot"></span>
+                    <span class="sync-text">Cloud Sync: Verbinde...</span>
+                </div>
                 <div class="launcher-membership-pill">
                     <svg class="launcher-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
@@ -907,6 +911,10 @@
                     </button>
                 </div>
                 <span id="gen-active-status-badge" class="gen-mode-indicator">Modus: Neuer Beleg</span>
+                <div id="gen-cloud-sync-badge" class="cloud-sync-status-badge status-connecting" onclick="if(window.PalnauCloudSync) window.PalnauCloudSync.forceSyncNow()" title="Cross-Device Cloud-Speicher (Firebase). Klicken für manuellen Sync.">
+                    <span class="sync-dot"></span>
+                    <span class="sync-text">Cloud Sync</span>
+                </div>
             </div>
 
             <div class="neu-header-right">
@@ -1406,5 +1414,7 @@
     <!-- Scripts -->
     <script src="js/data.js"></script>
     <script src="js/app.js"></script>
+    <!-- Firebase Cloud Synchronization for Cross-Device Persistence (GitHub Pages compatible) -->
+    <script type="module" src="js/firebase-sync.js"></script>
 </body>
 </html>

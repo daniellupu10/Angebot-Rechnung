@@ -3677,5 +3677,102 @@ body {
     }
 }
 
+/* ==========================================================================
+   CROSS-DEVICE CLOUD SYNC STATUS BADGE (FIREBASE FIRESTORE)
+   ========================================================================== */
+.cloud-sync-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.cloud-sync-status-badge:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.cloud-sync-status-badge:active {
+    transform: translateY(0);
+}
+
+.sync-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    flex-shrink: 0;
+    display: inline-block;
+    transition: background-color 0.25s ease;
+}
+
+.cloud-sync-status-badge.status-synced .sync-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.cloud-sync-status-badge.status-synced {
+    border-color: #d1fae5;
+    background: #f0fdf4;
+    color: #065f46;
+}
+
+.cloud-sync-status-badge.status-syncing .sync-dot {
+    background: #3b82f6;
+    animation: sync-pulse 1.2s infinite ease-in-out;
+}
+
+.cloud-sync-status-badge.status-syncing {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+}
+
+.cloud-sync-status-badge.status-connecting .sync-dot {
+    background: #f59e0b;
+    animation: sync-pulse 1.4s infinite ease-in-out;
+}
+
+.cloud-sync-status-badge.status-connecting {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.cloud-sync-status-badge.status-offline .sync-dot {
+    background: #94a3b8;
+}
+
+.cloud-sync-status-badge.status-offline {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+}
+
+@keyframes sync-pulse {
+    0%, 100% {
+        transform: scale(0.9);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.25);
+        opacity: 1;
+    }
+}
+
+
 
 
