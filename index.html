@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH</title>
-    <meta name="description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
+    <meta name="description" content="Erstellung und Verwaltung von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit Angebots-Übersicht, Transfer zu Rechnungen und DIN A4 PDF-Export.">
     <meta property="og:title" content="Rechnungs- & Angebots-Studio - Palnau Gartenbau GmbH">
-    <meta property="og:description" content="Erstellung und sauberer Export von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN A4 PDF-Export.">
+    <meta property="og:description" content="Erstellung und Verwaltung von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit Angebots-Übersicht, Transfer zu Rechnungen und DIN A4 PDF-Export.">
     <link rel="stylesheet" href="css/style.css">
     <!-- html2pdf.js for client-side clean PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -140,7 +140,23 @@
                 <span class="launcher-badge-neutral" id="launcher-count-badge">Archiv</span>
             </div>
 
-            <!-- App 3: E-Rechnung Hub (XML) -->
+            <!-- App 3: Angebots-Übersicht -->
+            <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('quotes')" title="Alle erstellten Angebote & Kalkulationen mit 1-Klick-Übertrag in Rechnungen">
+                <div class="launcher-icon-squircle icon-angebote">
+                    <div class="squircle-gloss"></div>
+                    <svg class="tile-svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="9 11 11 13 15 9"></polyline>
+                    </svg>
+                </div>
+                <span class="launcher-app-title">Angebots-Übersicht</span>
+                <span class="launcher-badge-new" id="launcher-quotes-badge">Angebote</span>
+            </div>
+
+            <!-- App 4: E-Rechnung Hub (XML) -->
             <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('erechnung')" title="Rechtskonforme E-Rechnung (XRechnung 3.0 / ZUGFeRD XML)">
                 <div class="launcher-icon-squircle icon-erechnung">
                     <div class="squircle-gloss"></div>
@@ -268,6 +284,18 @@
                     <h1>Rechnungs-Übersicht & Belegarchiv</h1>
                     <p>Alle erstellten Rechnungen der Palnau Gartenbau GmbH • Nach Monat, Quartal, Jahr und Kunde gefiltert</p>
                 </div>
+                <div class="neu-screen-header-tabs">
+                    <button type="button" class="neu-view-toggle-tab active" onclick="switchAppView('overview')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                        <span>Rechnungen</span>
+                        <span class="tab-mini-badge" id="tab-invoices-count">0</span>
+                    </button>
+                    <button type="button" class="neu-view-toggle-tab" onclick="switchAppView('quotes')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><polyline points="9 11 11 13 15 9"></polyline></svg>
+                        <span>Angebote</span>
+                        <span class="tab-mini-badge" id="tab-quotes-count">0</span>
+                    </button>
+                </div>
             </div>
 
             <!-- KPI Metrics Ribbon -->
@@ -365,6 +393,188 @@
             <main class="overview-content-area">
                 <div id="overview-invoices-list" class="overview-invoices-grid">
                     <!-- Cards populated dynamically via renderOverviewInvoices() -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         APP: ANGEBOTS-ÜBERSICHT & KALKULATIONEN
+         ==================================================================== -->
+    <div id="app-quotes-overview" class="neu-view-screen" style="display: none;">
+        <!-- Universal Neumorphic App Header -->
+        <header class="neu-universal-header">
+            <div class="neu-header-left">
+                <button type="button" class="neu-nav-btn neu-nav-home" onclick="switchAppView('launcher')" title="Zum Hauptmenü">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Hauptmenü</span>
+                </button>
+                <div class="neu-breadcrumb">
+                    <span>Studio</span>
+                    <span class="neu-sep">/</span>
+                    <strong style="color: #059669;">Angebots-Übersicht</strong>
+                </div>
+            </div>
+
+            <div class="neu-header-right">
+                <!-- Cloud Sync Status Badge -->
+                <div class="cloud-sync-status-badge status-synced" id="cloud-sync-badge-quotes" onclick="manualTriggerSync()" title="Echtzeit-Synchronisierung mit Google Cloud aktiv">
+                    <span class="sync-dot"></span>
+                    <span class="sync-label">Cloud synchronisiert</span>
+                </div>
+
+                <button type="button" class="neu-btn" onclick="clearQuotesArchive()" style="color: #ef4444;" title="Angebotsarchiv bereinigen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    <span>Archiv leeren</span>
+                </button>
+                <button type="button" class="neu-btn neu-btn-primary" onclick="createNewQuoteInGenerator()" title="Neues Angebot erstellen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Neues Angebot</span>
+                </button>
+                <button type="button" class="neu-btn neu-btn-lock" onclick="lockStudio()" title="Sperren">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Sperren</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="neu-view-body">
+            <!-- Screen Header Card -->
+            <div class="neu-screen-header-card">
+                <div class="neu-screen-title-wrap">
+                    <h1 style="color: #065f46;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <polyline points="9 11 11 13 15 9"></polyline>
+                        </svg>
+                        <span>Angebots-Übersicht & Kalkulationen</span>
+                    </h1>
+                    <p>Alle erstellten Angebote der Palnau Gartenbau GmbH • Mit 1-Klick-Übertrag in die Rechnungs-Übersicht bei Kundenzusage</p>
+                </div>
+                <div class="neu-screen-header-tabs">
+                    <button type="button" class="neu-view-toggle-tab" onclick="switchAppView('overview')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                        <span>Rechnungen</span>
+                        <span class="tab-mini-badge" id="tab-quotes-invoices-count">0</span>
+                    </button>
+                    <button type="button" class="neu-view-toggle-tab active tab-quotes-active" onclick="switchAppView('quotes')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><polyline points="9 11 11 13 15 9"></polyline></svg>
+                        <span>Angebote</span>
+                        <span class="tab-mini-badge" id="tab-quotes-quotes-count">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Metrics Ribbon -->
+            <div class="neu-kpi-grid">
+                <div class="neu-kpi-box">
+                    <div class="neu-kpi-title">Offenes Volumen (Brutto)</div>
+                    <div class="neu-kpi-num" style="color: #b45309;" id="kpi-quotes-volume-open">0,00 €</div>
+                    <div class="neu-kpi-subtitle" id="kpi-quotes-sub-open">Wartet auf Kundenzusage</div>
+                </div>
+                <div class="neu-kpi-box">
+                    <div class="neu-kpi-title">Angenommen & Umgewandelt</div>
+                    <div class="neu-kpi-num" style="color: #059669;" id="kpi-quotes-volume-accepted">0,00 €</div>
+                    <div class="neu-kpi-subtitle">Als Rechnung verbucht</div>
+                </div>
+                <div class="neu-kpi-box">
+                    <div class="neu-kpi-title">Gesamtvolumen kalkuliert</div>
+                    <div class="neu-kpi-num" style="color: #2563eb;" id="kpi-quotes-volume-total">0,00 €</div>
+                    <div class="neu-kpi-subtitle">Alle Angebote gesamt</div>
+                </div>
+                <div class="neu-kpi-box">
+                    <div class="neu-kpi-title">Erfolgsquote / Abschluss</div>
+                    <div class="neu-kpi-num" style="color: #7c3aed;" id="kpi-quotes-conversion-rate">0%</div>
+                    <div class="neu-kpi-subtitle" id="kpi-quotes-sub-count">0 Angebote im Archiv</div>
+                </div>
+            </div>
+
+            <!-- Filter & Sorting Command Center -->
+            <div class="neu-controls-bar">
+                <!-- Status Grouping Selector -->
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">Status:</span>
+                    <div class="neu-filter-segmented">
+                        <button type="button" class="neu-filter-pill active" id="pill-quote-status-all" onclick="setQuotesStatusFilter('all')">Alle</button>
+                        <button type="button" class="neu-filter-pill" id="pill-quote-status-offen" onclick="setQuotesStatusFilter('offen')">Nur Offene</button>
+                        <button type="button" class="neu-filter-pill" id="pill-quote-status-angenommen" onclick="setQuotesStatusFilter('angenommen')">Angenommen</button>
+                    </div>
+
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-left: 8px;">Zeitraum:</span>
+                    <div class="neu-filter-segmented">
+                        <button type="button" class="neu-filter-pill active" id="pill-quotes-period-all" onclick="setQuotesPeriodFilter('all')">Alle</button>
+                        <button type="button" class="neu-filter-pill" id="pill-quotes-period-monthly" onclick="setQuotesPeriodFilter('monthly')">Monat</button>
+                        <button type="button" class="neu-filter-pill" id="pill-quotes-period-quarter" onclick="setQuotesPeriodFilter('quarter')">Quartal</button>
+                        <button type="button" class="neu-filter-pill" id="pill-quotes-period-yearly" onclick="setQuotesPeriodFilter('yearly')">Jahr</button>
+                    </div>
+
+                    <!-- Sub-selector for Month / Quarter / Year -->
+                    <select id="quotes-sub-period-select" class="neu-inset-select" style="display: none;" onchange="handleQuotesSubPeriodChange(this.value)">
+                        <!-- Populated dynamically via JS -->
+                    </select>
+                </div>
+
+                <!-- Live Search & Sort Controls -->
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div class="neu-search-box-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="overview-quotes-search-input" class="neu-input-search" placeholder="Kunde, Angebot-Nr., Leistung..." oninput="handleQuotesSearch(this.value)">
+                    </div>
+
+                    <select id="overview-quotes-sort-select" class="neu-inset-select" onchange="handleQuotesSortChange(this.value)">
+                        <option value="date-desc">Datum (Neueste zuerst)</option>
+                        <option value="date-asc">Datum (Älteste zuerst)</option>
+                        <option value="name-asc">Kunde (A bis Z)</option>
+                        <option value="amount-desc">Angebotsbetrag (Höchste)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Bulk Selection Action Bar -->
+            <div class="overview-bulk-bar" style="margin-top: 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: rgba(255, 255, 255, 0.7); padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(226, 232, 240, 0.8);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: #475569; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="quotes-select-all-checkbox" onchange="toggleSelectAllQuotes(this.checked)" style="width: 16px; height: 16px; cursor: pointer; accent-color: #059669;">
+                        <span>Alle Angebote auswählen</span>
+                    </label>
+                    <span id="quotes-selected-count-badge" style="display: none; font-size: 0.75rem; font-weight: 700; background: #ecfdf5; color: #047857; padding: 2px 8px; border-radius: 9999px; border: 1px solid #a7f3d0;">
+                        0 ausgewählt
+                    </span>
+                </div>
+                <div id="quotes-selected-actions" style="display: none; align-items: center; gap: 8px;">
+                    <button type="button" class="neu-btn" onclick="deleteSelectedOverviewQuotes()" style="font-size: 0.8rem; padding: 6px 14px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>Ausgewählte löschen</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quotes List / Table Container -->
+            <main class="overview-content-area">
+                <div id="overview-quotes-list" class="overview-invoices-grid">
+                    <!-- Cards populated dynamically via renderQuotesOverview() -->
                 </div>
             </main>
         </div>
@@ -943,6 +1153,9 @@
             </div>
 
             <div class="neu-header-right">
+                <button type="button" class="neu-btn" id="btn-convert-to-invoice" onclick="openConvertToInvoiceModalFromGenerator()" style="display: none; background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-weight: 700;" title="Dieses Angebot als Rechnung buchen & übertragen">
+                    Als Rechnung buchen
+                </button>
                 <button type="button" class="neu-btn" id="btn-save-archive" onclick="saveCurrentInvoiceToArchive(true)" title="Aktuelle Rechnung in das Archiv buchen & speichern">
                     Speichern
                 </button>
@@ -1402,6 +1615,122 @@
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
                     <button type="button" class="neu-btn" onclick="closeLoanBudgetsModal()">Abbrechen</button>
                     <button type="submit" class="neu-btn neu-btn-primary">Budgets dauerhaft sichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ANGEBOT IN RECHNUNG UMWANDELN MODAL (DATE PICKER & DIRECT TRANSFER)
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="convert-quote-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeConvertToInvoiceModal()">
+        <div class="catalog-modal-window" style="max-width: 520px; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(226, 232, 240, 0.9); box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+            
+            <div class="modal-header-bar" style="background: #ffffff; padding: 18px 22px; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; background: #ecfdf5; color: #059669; flex-shrink: 0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="12" y1="18" x2="12" y2="12"></line>
+                            <line x1="9" y1="15" x2="15" y2="15"></line>
+                        </svg>
+                    </span>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">Als Rechnung speichern</h2>
+                        <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Angebot in die Rechnungs-Übersicht transferieren</div>
+                    </div>
+                </div>
+                <button type="button" class="neu-btn" onclick="closeConvertToInvoiceModal()" style="padding: 4px 10px; font-size: 0.85rem;" title="Schließen">✕</button>
+            </div>
+
+            <form id="convert-quote-form" onsubmit="event.preventDefault(); submitConvertToInvoice();" style="margin: 0;">
+                <div style="padding: 20px 24px; background: #f8fafc; display: flex; flex-direction: column; gap: 16px;">
+                    
+                    <!-- Quote Summary Card -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="font-size: 0.75rem; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Zu übertragendes Angebot</div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div>
+                                <div id="convert-quote-customer" style="font-size: 1rem; font-weight: 700; color: #0f172a;">Kundenname</div>
+                                <div id="convert-quote-meta" style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">ANG-2026-XXXX • Datum: 01.01.2026</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div id="convert-quote-amount" style="font-size: 1.15rem; font-weight: 800; color: #059669;">0,00 €</div>
+                                <div style="font-size: 0.72rem; color: #64748b;">Bruttobetrag</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date Selection (Critical User Requirement) -->
+                    <div class="neu-form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                            <label for="convert-invoice-date" style="font-size: 0.85rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+                                <span>Rechnungsdatum (Erforderlich)</span>
+                                <span style="color: #dc2626; font-size: 0.9rem;">*</span>
+                            </label>
+                            <span id="convert-date-german-display" style="font-size: 0.8rem; font-weight: 600; color: #0284c7;">14.09.2026</span>
+                        </div>
+                        <input type="date" id="convert-invoice-date" class="neu-input" required style="width: 100%; box-sizing: border-box; padding: 9px 12px; font-weight: 600;" onchange="updateConvertDateDisplay(this.value)">
+                        
+                        <!-- Quick Date Presets -->
+                        <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                            <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('today')">Heute (${new Date().toLocaleDateString('de-DE')})</button>
+                            <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('tomorrow')">Morgen</button>
+                            <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('firstOfMonth')">1. d. Monats</button>
+                            <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('sameAsQuote')">Angebotsdatum</button>
+                        </div>
+                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 5px;">
+                            Die Rechnung wird mit diesem neuen Datum in der Rechnungs-Übersicht angelegt.
+                        </div>
+                    </div>
+
+                    <!-- Invoice Number Selection -->
+                    <div class="neu-form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                            <label for="convert-invoice-num" style="font-size: 0.85rem; font-weight: 700; color: #0f172a;">
+                                Neue Rechnungsnummer
+                            </label>
+                            <button type="button" class="convert-date-quick-btn" onclick="generateNewConvertInvoiceNum()" style="padding: 2px 8px; font-size: 0.72rem;">Neu generieren</button>
+                        </div>
+                        <input type="text" id="convert-invoice-num" class="neu-input" required style="width: 100%; box-sizing: border-box; padding: 9px 12px; font-weight: 600; font-family: monospace;" placeholder="RE-2026-XXXX">
+                    </div>
+
+                    <!-- Service Period -->
+                    <div class="neu-form-group">
+                        <label for="convert-invoice-period" style="font-size: 0.85rem; font-weight: 700; color: #0f172a; margin-bottom: 6px; display: block;">
+                            Leistungszeitraum
+                        </label>
+                        <input type="text" id="convert-invoice-period" class="neu-input" style="width: 100%; box-sizing: border-box; padding: 9px 12px;" placeholder="z.B. März 2026 / Fertigstellung am ...">
+                    </div>
+
+                    <!-- Options -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="convert-opt-reference" checked style="width: 16px; height: 16px; accent-color: #059669;">
+                            <span>Referenz auf Angebot vermerken ("Ausgeführt gemäß Angebot ANG-...")</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="convert-opt-mark-accepted" checked style="width: 16px; height: 16px; accent-color: #059669;">
+                            <span>Angebot in Angebots-Übersicht als "Angenommen" markieren</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="convert-opt-switch-view" checked style="width: 16px; height: 16px; accent-color: #059669;">
+                            <span>Direkt zur Rechnungs-Übersicht wechseln</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; background: #ffffff; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="neu-btn" onclick="closeConvertToInvoiceModal()" style="padding: 9px 18px; font-weight: 600; font-size: 0.9rem;">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="neu-btn neu-btn-primary" style="padding: 9px 22px; font-weight: 700; font-size: 0.9rem; background: linear-gradient(135deg, #059669, #047857); border-color: #047857; color: #ffffff; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Als Rechnung in Rechnungs-Übersicht buchen</span>
+                    </button>
                 </div>
             </form>
         </div>

@@ -123,6 +123,7 @@ window.onPalnauCloudDataUpdated = function(info) {
     try {
         if (typeof updateAllAppStatesAndBadges === 'function') updateAllAppStatesAndBadges();
         if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+        if (typeof renderQuotesOverview === 'function') renderQuotesOverview();
         if (typeof renderClientsView === 'function') renderClientsView();
         if (typeof renderQuartersView === 'function') renderQuartersView();
         if (typeof renderERechnungHub === 'function') renderERechnungHub();
@@ -1233,6 +1234,7 @@ function lockStudio() {
             const screens = [
                 'app-launcher-menu', 
                 'app-invoices-overview', 
+                'app-quotes-overview',
                 'app-main-shell', 
                 'app-erechnung-hub', 
                 'app-catalog-view', 
@@ -1276,6 +1278,7 @@ window.switchAppView = function(viewName) {
     const views = {
         'launcher': document.getElementById('app-launcher-menu'),
         'overview': document.getElementById('app-invoices-overview'),
+        'quotes': document.getElementById('app-quotes-overview'),
         'generator': document.getElementById('app-main-shell'),
         'erechnung': document.getElementById('app-erechnung-hub'),
         'catalog': document.getElementById('app-catalog-view'),
@@ -1307,6 +1310,11 @@ window.switchAppView = function(viewName) {
         updateAllAppStatesAndBadges();
     } else if (viewName === 'overview') {
         renderOverviewInvoices();
+        updateAllAppStatesAndBadges();
+    } else if (viewName === 'quotes') {
+        if (typeof renderQuotesOverview === 'function') {
+            renderQuotesOverview();
+        }
         updateAllAppStatesAndBadges();
     } else if (viewName === 'generator') {
         renderAll();
@@ -1395,6 +1403,18 @@ window.getInvoicesArchive = function() {
     // Filter out any deleted items
     list = list.filter(inv => !deletedSet.has(String(inv.id)) && !deletedSet.has(String(inv.docNumber)));
 
+    // Seed realistic quotes if not yet present in archive
+    if (typeof SEED_QUOTES_ARCHIVE !== 'undefined' && Array.isArray(SEED_QUOTES_ARCHIVE)) {
+        const hasQuotes = list.some(inv => inv.docType === 'angebot');
+        const quotesSeeded = localStorage.getItem('palnau_quotes_seeded') === 'true';
+        if (!hasQuotes && !quotesSeeded) {
+            const initialQuotes = SEED_QUOTES_ARCHIVE.filter(seed => !deletedSet.has(String(seed.id)) && !deletedSet.has(String(seed.docNumber)));
+            list = [...list, ...initialQuotes];
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(list));
+            localStorage.setItem('palnau_quotes_seeded', 'true');
+        }
+    }
+
     // Normalization safeguard: ensure totalNet, totalTax, totalGross are numeric and present
     return list.map(inv => {
         const net = parseFloat(inv.totalNet ?? inv.netTotal ?? 0) || 0;
@@ -1468,7 +1488,11 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
     }
 
     if (notifyUser) {
-        showToast(`Rechnung ${invoiceRecord.docNumber} (${formatCurrency(totals.grossTotal)}) im Archiv gespeichert!`);
+        if (appState.docType === 'angebot') {
+            showToast(`Angebot ${invoiceRecord.docNumber} (${formatCurrency(totals.grossTotal)}) in der Angebots-Übersicht gespeichert!`);
+        } else {
+            showToast(`Rechnung ${invoiceRecord.docNumber} (${formatCurrency(totals.grossTotal)}) im Archiv gespeichert!`);
+        }
     }
 };
 
@@ -1502,6 +1526,7 @@ window.deleteInvoiceFromArchive = function(invoiceId) {
     }
 
     if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+    if (typeof renderQuotesOverview === 'function') renderQuotesOverview();
     if (typeof renderClientsView === 'function') renderClientsView();
     if (typeof renderQuartersView === 'function') renderQuartersView();
     if (typeof renderERechnungHub === 'function') renderERechnungHub();
@@ -1644,10 +1669,68 @@ window.createNewInvoiceInGenerator = function() {
     showToast("Neues Rechnungsformular geöffnet.");
 };
 
+window.createNewQuoteInGenerator = function() {
+    startCleanState();
+    appState.activeArchiveId = null;
+    appState.docType = "angebot";
+    appState.docNumber = generateDocNumber("angebot");
+    appState.docDate = formatDateForGermanDisplay(new Date());
+    appState.servicePeriod = "Gültig 30 Tage ab Ausstellungsdatum";
+    appState.notesText = "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
+    saveState();
+    const badge = document.getElementById('gen-active-status-badge');
+    if (badge) {
+        badge.textContent = `Neues Angebot: ${appState.docNumber}`;
+        badge.style.borderColor = '#059669';
+        badge.style.color = '#059669';
+    }
+    switchAppView('generator');
+    showToast(`Neues Angebot ${appState.docNumber} geöffnet.`);
+};
+
+window.editQuoteInGenerator = function(quoteId) {
+    const archive = getInvoicesArchive();
+    const quote = archive.find(inv => String(inv.id) === String(quoteId));
+    if (!quote) {
+        showToast("Angebot nicht gefunden.");
+        return;
+    }
+
+    appState.activeArchiveId = quote.id;
+    appState.docType = "angebot";
+    appState.docNumber = quote.docNumber;
+    appState.docDate = quote.docDate;
+    appState.servicePeriod = quote.servicePeriod || "Gültig 30 Tage ab Ausstellungsdatum";
+    appState.taxRate = quote.taxRate || 19;
+    appState.client = {
+        name: quote.client ? quote.client.name : "",
+        street: quote.client ? quote.client.street : "",
+        zipCity: quote.client ? quote.client.zipCity : ""
+    };
+    appState.items = JSON.parse(JSON.stringify(quote.items || []));
+    appState.notesText = quote.notesText || "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
+
+    saveState();
+
+    const badge = document.getElementById('gen-active-status-badge');
+    if (badge) {
+        badge.textContent = `Bearbeite Angebot: ${quote.docNumber}`;
+        badge.style.borderColor = '#059669';
+        badge.style.color = '#059669';
+    }
+
+    switchAppView('generator');
+    showToast(`Angebot ${quote.docNumber} in den Editor geladen.`);
+};
+
 window.updateAllAppStatesAndBadges = function() {
     const archive = getInvoicesArchive();
-    const totalCount = archive.length;
-    const totalGross = archive.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+    const invoices = archive.filter(inv => (inv.docType || 'rechnung') !== 'angebot');
+    const quotes = archive.filter(inv => inv.docType === 'angebot');
+
+    const totalCount = invoices.length;
+    const totalQuotesCount = quotes.length;
+    const totalGross = invoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
 
     // Calculate unique clients
     const clientsSet = new Set();
@@ -1660,7 +1743,10 @@ window.updateAllAppStatesAndBadges = function() {
 
     // 1. Launcher Badges & Counters
     const bCount = document.getElementById('launcher-count-badge');
-    if (bCount) bCount.textContent = `${totalCount} Belege`;
+    if (bCount) bCount.textContent = `${totalCount} Rechnungen`;
+
+    const bQuotes = document.getElementById('launcher-quotes-badge');
+    if (bQuotes) bQuotes.textContent = `${totalQuotesCount} Angebote`;
 
     const bXml = document.getElementById('launcher-xml-badge');
     if (bXml) bXml.textContent = `${totalCount} XML`;
@@ -1670,6 +1756,25 @@ window.updateAllAppStatesAndBadges = function() {
 
     const bQuarters = document.getElementById('launcher-quarters-badge');
     if (bQuarters) bQuarters.textContent = formatCurrency(totalGross);
+
+    // Tab counters
+    const tabInvCount = document.getElementById('tab-invoices-count');
+    if (tabInvCount) tabInvCount.textContent = String(totalCount);
+
+    const tabQuotesCount = document.getElementById('tab-quotes-count');
+    if (tabQuotesCount) tabQuotesCount.textContent = String(totalQuotesCount);
+
+    const tabQuotesInvoicesCount = document.getElementById('tab-quotes-invoices-count');
+    if (tabQuotesInvoicesCount) tabQuotesInvoicesCount.textContent = String(totalCount);
+
+    const tabQuotesQuotesCount = document.getElementById('tab-quotes-quotes-count');
+    if (tabQuotesQuotesCount) tabQuotesQuotesCount.textContent = String(totalQuotesCount);
+
+    // Generator header convert button visibility
+    const btnConvertToInvoice = document.getElementById('btn-convert-to-invoice');
+    if (btnConvertToInvoice) {
+        btnConvertToInvoice.style.display = (appState && appState.docType === 'angebot') ? 'inline-flex' : 'none';
+    }
 
     // Loans Badge
     if (typeof getLoanData === 'function') {
@@ -1697,6 +1802,8 @@ window.updateAllAppStatesAndBadges = function() {
             renderQuartersView();
         } else if (currentActiveView === 'overview' && typeof renderOverviewInvoices === 'function') {
             renderOverviewInvoices();
+        } else if (currentActiveView === 'quotes' && typeof renderQuotesOverview === 'function') {
+            renderQuotesOverview();
         } else if (currentActiveView === 'erechnung' && typeof renderERechnungHub === 'function') {
             renderERechnungHub();
         } else if (currentActiveView === 'loans' && typeof renderLoansView === 'function') {
@@ -1854,7 +1961,7 @@ window.renderOverviewInvoices = function() {
     const listContainer = document.getElementById('overview-invoices-list');
     if (!listContainer) return;
 
-    let archive = getInvoicesArchive();
+    let archive = getInvoicesArchive().filter(inv => (inv.docType || 'rechnung') !== 'angebot');
 
     // 1. Filter by Period (all, monthly, quarter, yearly)
     if (overviewFilter.periodType === 'monthly' && overviewFilter.subPeriod !== 'all') {
@@ -2103,6 +2210,659 @@ window.deleteSelectedOverviewInvoices = function() {
     updateAllAppStatesAndBadges();
 
     showToast(`${count} Belege erfolgreich gelöscht.`);
+};
+
+// ==========================================================================
+// ANGEBOTS-ÜBERSICHT & QUOTE-TO-INVOICE TRANSFER CONTROLLER
+// Dedicated screen for all quotes with 1-click conversion to invoices
+// Prompts for a distinct invoice date as requested by user
+// ==========================================================================
+
+let quotesFilter = {
+    status: 'all', // 'all' | 'offen' | 'angenommen'
+    periodType: 'all', // 'all' | 'monthly' | 'quarter' | 'yearly'
+    subPeriod: 'all',
+    sortBy: 'date-desc',
+    searchTerm: ''
+};
+
+let activeQuoteForConversion = null;
+
+// Helper to format ISO date (YYYY-MM-DD) to German string (DD.MM.YYYY) without timezone shift
+function formatIsoToGerman(isoStr) {
+    if (!isoStr) return "";
+    const parts = String(isoStr).split('-');
+    if (parts.length === 3) {
+        return `${parts[2].padStart(2, '0')}.${parts[1].padStart(2, '0')}.${parts[0]}`;
+    }
+    return formatDateForGermanDisplay(isoStr);
+}
+
+// Helper to format German string (DD.MM.YYYY) to ISO (YYYY-MM-DD)
+function formatGermanToIso(germanStr) {
+    if (!germanStr) return "";
+    const parts = String(germanStr).split('.');
+    if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return "";
+}
+
+window.setQuotesStatusFilter = function(status) {
+    quotesFilter.status = status;
+    const pills = ['all', 'offen', 'angenommen'];
+    pills.forEach(p => {
+        const btn = document.getElementById(`pill-quote-status-${p}`);
+        if (btn) btn.classList.toggle('active', p === status);
+    });
+    renderQuotesOverview();
+};
+
+window.setQuotesPeriodFilter = function(type) {
+    quotesFilter.periodType = type;
+    const pills = ['all', 'monthly', 'quarter', 'yearly'];
+    pills.forEach(p => {
+        const btn = document.getElementById(`pill-quotes-period-${p}`);
+        if (btn) btn.classList.toggle('active', p === type);
+    });
+
+    const subSelect = document.getElementById('quotes-sub-period-select');
+    if (type === 'all') {
+        quotesFilter.subPeriod = 'all';
+        if (subSelect) subSelect.style.display = 'none';
+    } else {
+        populateQuotesSubPeriodDropdown(type);
+        if (subSelect) {
+            subSelect.style.display = 'inline-block';
+            if (subSelect.options.length > 1) {
+                quotesFilter.subPeriod = subSelect.options[1].value;
+                subSelect.value = quotesFilter.subPeriod;
+            } else {
+                quotesFilter.subPeriod = 'all';
+            }
+        }
+    }
+    renderQuotesOverview();
+};
+
+function populateQuotesSubPeriodDropdown(type) {
+    const subSelect = document.getElementById('quotes-sub-period-select');
+    if (!subSelect) return;
+
+    const archive = getInvoicesArchive().filter(inv => inv.docType === 'angebot');
+    subSelect.innerHTML = "";
+
+    const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+    const yearsSet = new Set();
+    archive.forEach(inv => {
+        const d = parseGermanDate(inv.docDate);
+        yearsSet.add(d.getFullYear());
+    });
+    yearsSet.add(2026);
+    yearsSet.add(2025);
+    const sortedYears = Array.from(yearsSet).sort().reverse();
+
+    if (type === 'monthly') {
+        subSelect.innerHTML = `<option value="all">Alle Monate</option>`;
+        const monthsSet = new Set();
+        archive.forEach(inv => {
+            const d = parseGermanDate(inv.docDate);
+            const m = d.getMonth() + 1;
+            const y = d.getFullYear();
+            monthsSet.add(`${y}-${String(m).padStart(2, '0')}`);
+        });
+        sortedYears.forEach(y => {
+            [6, 5, 4, 3, 2, 1].forEach(m => monthsSet.add(`${y}-${String(m).padStart(2, '0')}`));
+        });
+        const sortedMonths = Array.from(monthsSet).sort().reverse();
+        sortedMonths.forEach(key => {
+            const [y, mStr] = key.split('-');
+            const mIdx = parseInt(mStr, 10) - 1;
+            subSelect.innerHTML += `<option value="${key}">${monthNames[mIdx]} ${y}</option>`;
+        });
+    } else if (type === 'quarter') {
+        subSelect.innerHTML = `<option value="all">Alle Quartale</option>`;
+        sortedYears.forEach(y => {
+            subSelect.innerHTML += `<option value="${y}-Q1">1. Quartal (Q1) / ${y}</option>`;
+            subSelect.innerHTML += `<option value="${y}-Q2">2. Quartal (Q2) / ${y}</option>`;
+            subSelect.innerHTML += `<option value="${y}-Q3">3. Quartal (Q3) / ${y}</option>`;
+            subSelect.innerHTML += `<option value="${y}-Q4">4. Quartal (Q4) / ${y}</option>`;
+        });
+    } else if (type === 'yearly') {
+        subSelect.innerHTML = `<option value="all">Alle Jahre</option>`;
+        sortedYears.forEach(y => {
+            subSelect.innerHTML += `<option value="${y}">Jahr ${y}</option>`;
+        });
+    }
+}
+
+window.handleQuotesSubPeriodChange = function(val) {
+    quotesFilter.subPeriod = val;
+    renderQuotesOverview();
+};
+
+window.handleQuotesSearch = function(query) {
+    quotesFilter.searchTerm = (query || "").trim().toLowerCase();
+    renderQuotesOverview();
+};
+
+window.handleQuotesSortChange = function(val) {
+    quotesFilter.sortBy = val;
+    renderQuotesOverview();
+};
+
+window.clearQuotesArchive = function() {
+    const archive = getInvoicesArchive();
+    const quotes = archive.filter(inv => inv.docType === 'angebot');
+    if (quotes.length === 0) {
+        showToast("Das Angebotsarchiv ist bereits leer.");
+        return;
+    }
+
+    showAppConfirm(
+        `Möchten Sie wirklich alle ${quotes.length} Angebote unwiderruflich löschen?\nIhre Rechnungen bleiben dabei vollständig erhalten.`,
+        () => {
+            quotes.forEach(q => markInvoiceAsDeleted(q.id, q.docNumber));
+            const remaining = archive.filter(inv => inv.docType !== 'angebot');
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(remaining));
+            localStorage.setItem('palnau_workspace_initialized', 'true');
+            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+                window.PalnauCloudSync.pushLocalToCloud(true);
+            }
+            renderQuotesOverview();
+            updateAllAppStatesAndBadges();
+            showToast("Alle Angebote wurden erfolgreich gelöscht.");
+        },
+        { title: "Angebotsarchiv leeren", confirmText: "Alle Angebote löschen", btnColor: "#e11d48" }
+    );
+};
+
+// Bulk selection for quotes
+window.toggleSelectAllQuotes = function(checked) {
+    const checkboxes = document.querySelectorAll('.overview-quote-chk');
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+    });
+    handleQuoteSelectionChange();
+};
+
+window.handleQuoteSelectionChange = function() {
+    const checkboxes = document.querySelectorAll('.overview-quote-chk');
+    const checkedBoxes = document.querySelectorAll('.overview-quote-chk:checked');
+    const count = checkedBoxes.length;
+    const total = checkboxes.length;
+
+    const countBadge = document.getElementById('quotes-selected-count-badge');
+    const actionsBar = document.getElementById('quotes-selected-actions');
+    const topChk = document.getElementById('quotes-select-all-checkbox');
+
+    if (countBadge) {
+        countBadge.textContent = `${count} von ${total} ausgewählt`;
+        countBadge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+    if (actionsBar) {
+        actionsBar.style.display = count > 0 ? 'flex' : 'none';
+    }
+    if (topChk) {
+        topChk.checked = count === total && total > 0;
+        topChk.indeterminate = count > 0 && count < total;
+    }
+};
+
+window.deleteSelectedOverviewQuotes = function() {
+    const checkedBoxes = document.querySelectorAll('.overview-quote-chk:checked');
+    if (checkedBoxes.length === 0) {
+        showToast("Keine Angebote ausgewählt.");
+        return;
+    }
+
+    const idsToDelete = Array.from(checkedBoxes).map(cb => cb.value).filter(Boolean);
+    const count = idsToDelete.length;
+
+    const archive = getInvoicesArchive();
+    idsToDelete.forEach(id => {
+        const quote = archive.find(i => String(i.id) === String(id));
+        markInvoiceAsDeleted(id, quote ? quote.docNumber : null);
+    });
+
+    const updated = archive.filter(inv => !idsToDelete.includes(String(inv.id)));
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem('palnau_workspace_initialized', 'true');
+
+    if (appState && idsToDelete.includes(String(appState.activeArchiveId))) {
+        appState.activeArchiveId = null;
+        if (typeof closeAppConfirm === 'function') closeAppConfirm();
+        startCleanState();
+        if (typeof renderAll === 'function') renderAll();
+    }
+
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud(true);
+    }
+
+    renderQuotesOverview();
+    updateAllAppStatesAndBadges();
+    showToast(`${count} Angebot(e) erfolgreich gelöscht.`);
+};
+
+// ==========================================================================
+// RENDER QUOTES OVERVIEW
+// ==========================================================================
+window.renderQuotesOverview = function() {
+    const listContainer = document.getElementById('overview-quotes-list');
+    if (!listContainer) return;
+
+    let archive = getInvoicesArchive().filter(inv => inv.docType === 'angebot');
+
+    // 1. Calculate KPI Metrics for Quotes
+    const totalCount = archive.length;
+    const acceptedQuotes = archive.filter(q => q.quoteStatus === 'angenommen');
+    const openQuotes = archive.filter(q => q.quoteStatus !== 'angenommen');
+
+    const volumeOpen = openQuotes.reduce((s, q) => s + (parseFloat(q.totalGross) || 0), 0);
+    const volumeAccepted = acceptedQuotes.reduce((s, q) => s + (parseFloat(q.totalGross) || 0), 0);
+    const volumeTotal = volumeOpen + volumeAccepted;
+    const conversionRate = totalCount > 0 ? Math.round((acceptedQuotes.length / totalCount) * 100) : 0;
+
+    const kpiOpen = document.getElementById('kpi-quotes-volume-open');
+    const kpiAccepted = document.getElementById('kpi-quotes-volume-accepted');
+    const kpiTotal = document.getElementById('kpi-quotes-volume-total');
+    const kpiRate = document.getElementById('kpi-quotes-conversion-rate');
+    const kpiSubCount = document.getElementById('kpi-quotes-sub-count');
+    const kpiSubOpen = document.getElementById('kpi-quotes-sub-open');
+
+    if (kpiOpen) kpiOpen.textContent = formatCurrency(volumeOpen);
+    if (kpiAccepted) kpiAccepted.textContent = formatCurrency(volumeAccepted);
+    if (kpiTotal) kpiTotal.textContent = formatCurrency(volumeTotal);
+    if (kpiRate) kpiRate.textContent = `${conversionRate}%`;
+    if (kpiSubCount) kpiSubCount.textContent = `${totalCount} Angebote im Archiv`;
+    if (kpiSubOpen) kpiSubOpen.textContent = `${openQuotes.length} offen • ${acceptedQuotes.length} angenommen`;
+
+    // 2. Filter by Status
+    if (quotesFilter.status === 'offen') {
+        archive = archive.filter(q => q.quoteStatus !== 'angenommen');
+    } else if (quotesFilter.status === 'angenommen') {
+        archive = archive.filter(q => q.quoteStatus === 'angenommen');
+    }
+
+    // 3. Filter by Period
+    if (quotesFilter.periodType === 'monthly' && quotesFilter.subPeriod !== 'all') {
+        const [targetYear, targetMonth] = quotesFilter.subPeriod.split('-');
+        archive = archive.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getFullYear() === parseInt(targetYear, 10) && (d.getMonth() + 1) === parseInt(targetMonth, 10);
+        });
+    } else if (quotesFilter.periodType === 'quarter' && quotesFilter.subPeriod !== 'all') {
+        const [targetYear, targetQ] = quotesFilter.subPeriod.split('-');
+        const qNum = parseInt(targetQ.replace('Q', ''), 10);
+        archive = archive.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            const invQ = Math.floor(d.getMonth() / 3) + 1;
+            return d.getFullYear() === parseInt(targetYear, 10) && invQ === qNum;
+        });
+    } else if (quotesFilter.periodType === 'yearly' && quotesFilter.subPeriod !== 'all') {
+        archive = archive.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getFullYear() === parseInt(quotesFilter.subPeriod, 10);
+        });
+    }
+
+    // 4. Filter by Search Query
+    if (quotesFilter.searchTerm) {
+        const term = quotesFilter.searchTerm;
+        archive = archive.filter(inv => {
+            const name = (inv.client && inv.client.name) ? inv.client.name.toLowerCase() : "";
+            const street = (inv.client && inv.client.street) ? inv.client.street.toLowerCase() : "";
+            const city = (inv.client && inv.client.zipCity) ? inv.client.zipCity.toLowerCase() : "";
+            const docNum = (inv.docNumber || "").toLowerCase();
+            const itemsText = (inv.items || []).map(i => (i.title + " " + i.description).toLowerCase()).join(" ");
+            return name.includes(term) || street.includes(term) || city.includes(term) || docNum.includes(term) || itemsText.includes(term);
+        });
+    }
+
+    // 5. Sort
+    archive.sort((a, b) => {
+        const dateA = parseGermanDate(a.docDate).getTime();
+        const dateB = parseGermanDate(b.docDate).getTime();
+        const grossA = parseFloat(a.totalGross) || 0;
+        const grossB = parseFloat(b.totalGross) || 0;
+        const nameA = ((a.client && a.client.name) || "").toLowerCase();
+        const nameB = ((b.client && b.client.name) || "").toLowerCase();
+
+        switch (quotesFilter.sortBy) {
+            case 'date-desc': return dateB - dateA;
+            case 'date-asc': return dateA - dateB;
+            case 'amount-desc': return grossB - grossA;
+            case 'amount-asc': return grossA - grossB;
+            case 'name-asc': return nameA.localeCompare(nameB);
+            default: return dateB - dateA;
+        }
+    });
+
+    // 6. Render Quote Cards
+    if (archive.length === 0) {
+        listContainer.innerHTML = `
+            <div style="background: #ffffff; border-radius: 14px; padding: 48px 24px; text-align: center; border: 1px dashed #cbd5e1; grid-column: 1 / -1;">
+                <div style="display: flex; justify-content: center; margin-bottom: 14px;">
+                    <div style="width: 52px; height: 52px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                        </svg>
+                    </div>
+                </div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin: 0 0 6px 0;">Keine Angebote gefunden</h3>
+                <p style="color: #64748b; font-size: 0.88rem; margin: 0 0 18px 0;">Erstellen Sie ein neues Angebot mit individuellen Leistungen oder passen Sie Ihre Filter an.</p>
+                <button type="button" class="neu-btn neu-btn-primary" onclick="createNewQuoteInGenerator()" style="padding: 9px 20px; font-size: 0.88rem;">
+                    Neues Angebot erstellen
+                </button>
+            </div>
+        `;
+        handleQuoteSelectionChange();
+        return;
+    }
+
+    listContainer.innerHTML = archive.map(quote => {
+        const isAccepted = quote.quoteStatus === 'angenommen';
+        const clientName = (quote.client && quote.client.name) ? quote.client.name : "Unbenannter Kunde";
+        const clientStreet = (quote.client && quote.client.street) ? quote.client.street : "";
+        const clientCity = (quote.client && quote.client.zipCity) ? quote.client.zipCity : "";
+        const itemsCount = (quote.items || []).length;
+        const itemsPreview = (quote.items || []).slice(0, 2).map(i => i.title || i.description).filter(Boolean).join(" • ");
+
+        const statusBadge = isAccepted 
+            ? `<span class="card-status-badge status-quote-angenommen">
+                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                 <span>Angenommen${quote.convertedInvoiceNumber ? ' (' + escapeHtml(quote.convertedInvoiceNumber) + ')' : ''}</span>
+               </span>`
+            : (quote.quoteStatus === 'in_abstimmung'
+                ? `<span class="card-status-badge status-quote-abstimmung">● In Abstimmung</span>`
+                : `<span class="card-status-badge status-quote-offen">● Offen</span>`);
+
+        return `
+            <div class="overview-invoice-card quote-card ${isAccepted ? 'is-converted-accepted' : ''}">
+                <div class="card-top-row">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" class="overview-quote-chk" value="${escapeHtml(quote.id)}" onchange="handleQuoteSelectionChange()" style="cursor: pointer; width: 16px; height: 16px; accent-color: #059669;">
+                        <div>
+                            <div class="card-doc-number quote-doc-num">${escapeHtml(quote.docNumber || 'ANG-UNBEKANNT')}</div>
+                            <div class="card-doc-date">Angebotsdatum: ${escapeHtml(quote.docDate || '-')}</div>
+                        </div>
+                    </div>
+                    ${statusBadge}
+                </div>
+
+                <div class="card-client-wrap">
+                    <div class="card-client-name">${escapeHtml(clientName)}</div>
+                    <div class="card-client-address">${escapeHtml(clientStreet)}${clientStreet && clientCity ? ', ' : ''}${escapeHtml(clientCity)}</div>
+                </div>
+
+                <div class="card-items-preview">
+                    <strong>${itemsCount} Position${itemsCount === 1 ? '' : 'en'}:</strong> 
+                    ${escapeHtml(itemsPreview || "Garten- & Landschaftsbauarbeiten")}
+                    ${itemsCount > 2 ? ` <span style="color: #64748b; font-size: 0.78rem;">(+${itemsCount - 2} weitere)</span>` : ''}
+                </div>
+
+                <div class="card-amounts-table">
+                    <div class="card-amount-row">
+                        <span>Netto:</span>
+                        <span>${formatCurrency(quote.totalNet || 0)}</span>
+                    </div>
+                    <div class="card-amount-row">
+                        <span>USt (19%):</span>
+                        <span>${formatCurrency(quote.totalTax || 0)}</span>
+                    </div>
+                    <div class="card-amount-row total-gross quote-gross">
+                        <span>Gesamt (Brutto):</span>
+                        <span>${formatCurrency(quote.totalGross || 0)}</span>
+                    </div>
+                </div>
+
+                <div class="card-actions-row">
+                    <!-- Key user requirement: Direct transfer button with custom date modal -->
+                    <button type="button" class="btn-card-action btn-action-convert" onclick="openConvertToInvoiceModal('${escapeHtml(quote.id)}')" title="Bei Kundenzusage als Rechnung mit neuem Datum in Rechnungs-Übersicht transferieren">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="12" y1="18" x2="12" y2="12"></line>
+                            <line x1="9" y1="15" x2="15" y2="15"></line>
+                        </svg>
+                        <span>${isAccepted ? 'Als neue Rechnung buchen' : 'Als Rechnung buchen'}</span>
+                    </button>
+
+                    <button type="button" class="btn-card-action" onclick="editQuoteInGenerator('${escapeHtml(quote.id)}')" title="Im Generator bearbeiten">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        <span>Bearbeiten</span>
+                    </button>
+
+                    <button type="button" class="btn-card-action" onclick="downloadInvoicePdfDirect('${escapeHtml(quote.id)}')" title="Angebot als PDF drucken">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                        <span>PDF</span>
+                    </button>
+
+                    <button type="button" class="btn-card-action btn-action-delete" onclick="deleteInvoiceFromArchive('${escapeHtml(quote.id)}')" title="Angebot löschen">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Löschen</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    handleQuoteSelectionChange();
+};
+
+// ==========================================================================
+// QUOTE TO INVOICE TRANSFER & DATE PROMPT MODAL
+// ==========================================================================
+window.openConvertToInvoiceModal = function(quoteId) {
+    let quote = null;
+    if (quoteId === 'current') {
+        const totals = calculateTotals();
+        quote = {
+            id: appState.activeArchiveId || ('ang-temp-' + Date.now()),
+            docType: 'angebot',
+            docNumber: appState.docNumber,
+            docDate: appState.docDate,
+            servicePeriod: appState.servicePeriod,
+            taxRate: appState.taxRate,
+            client: { ...appState.client },
+            items: JSON.parse(JSON.stringify(appState.items || [])),
+            notesText: appState.notesText,
+            totalNet: totals.netTotal,
+            totalTax: totals.taxAmount,
+            totalGross: totals.grossTotal
+        };
+    } else {
+        const archive = getInvoicesArchive();
+        quote = archive.find(i => String(i.id) === String(quoteId));
+    }
+
+    if (!quote) {
+        showToast("Angebot konnte nicht geladen werden.");
+        return;
+    }
+
+    activeQuoteForConversion = quote;
+
+    // Fill summary details
+    const custEl = document.getElementById('convert-quote-customer');
+    const metaEl = document.getElementById('convert-quote-meta');
+    const amountEl = document.getElementById('convert-quote-amount');
+
+    if (custEl) custEl.textContent = (quote.client && quote.client.name) ? quote.client.name : "Unbenannter Kunde";
+    if (metaEl) metaEl.textContent = `${quote.docNumber || 'Angebot'} • Angebotsdatum: ${quote.docDate || '-'}`;
+    if (amountEl) amountEl.textContent = formatCurrency(quote.totalGross || 0);
+
+    // Prompt for new invoice date (Default: Today in YYYY-MM-DD)
+    const today = new Date();
+    const todayIso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    
+    const dateInput = document.getElementById('convert-invoice-date');
+    if (dateInput) {
+        dateInput.value = todayIso;
+        updateConvertDateDisplay(todayIso);
+    }
+
+    // Pre-fill next invoice document number
+    const numInput = document.getElementById('convert-invoice-num');
+    if (numInput) {
+        numInput.value = generateDocNumber("rechnung");
+    }
+
+    // Pre-fill service period
+    const periodInput = document.getElementById('convert-invoice-period');
+    if (periodInput) {
+        periodInput.value = quote.servicePeriod && !quote.servicePeriod.includes('Gültig') ? quote.servicePeriod : getCurrentMonthGerman();
+    }
+
+    // Open Modal
+    const modal = document.getElementById('convert-quote-modal');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.openConvertToInvoiceModalFromGenerator = function() {
+    if (appState.docType !== 'angebot') {
+        showToast("Nur Angebote können in eine Rechnung umgewandelt werden.");
+        return;
+    }
+    // Save current quote first
+    saveCurrentInvoiceToArchive(false);
+    openConvertToInvoiceModal(appState.activeArchiveId || 'current');
+};
+
+window.closeConvertToInvoiceModal = function() {
+    const modal = document.getElementById('convert-quote-modal');
+    if (modal) modal.style.display = 'none';
+    activeQuoteForConversion = null;
+};
+
+window.updateConvertDateDisplay = function(isoVal) {
+    const display = document.getElementById('convert-date-german-display');
+    if (display) {
+        display.textContent = formatIsoToGerman(isoVal);
+    }
+};
+
+window.setConvertDatePreset = function(preset) {
+    const dateInput = document.getElementById('convert-invoice-date');
+    if (!dateInput) return;
+
+    const d = new Date();
+    if (preset === 'today') {
+        // Today
+    } else if (preset === 'tomorrow') {
+        d.setDate(d.getDate() + 1);
+    } else if (preset === 'firstOfMonth') {
+        d.setDate(1);
+    } else if (preset === 'sameAsQuote') {
+        if (activeQuoteForConversion && activeQuoteForConversion.docDate) {
+            const iso = formatGermanToIso(activeQuoteForConversion.docDate);
+            if (iso) {
+                dateInput.value = iso;
+                updateConvertDateDisplay(iso);
+                return;
+            }
+        }
+    }
+
+    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    dateInput.value = iso;
+    updateConvertDateDisplay(iso);
+};
+
+window.generateNewConvertInvoiceNum = function() {
+    const input = document.getElementById('convert-invoice-num');
+    if (input) {
+        input.value = generateDocNumber("rechnung");
+    }
+};
+
+window.submitConvertToInvoice = function() {
+    if (!activeQuoteForConversion) {
+        showToast("Fehler: Kein Angebot ausgewählt.");
+        closeConvertToInvoiceModal();
+        return;
+    }
+
+    const dateInput = document.getElementById('convert-invoice-date');
+    const numInput = document.getElementById('convert-invoice-num');
+    const periodInput = document.getElementById('convert-invoice-period');
+    const optRef = document.getElementById('convert-opt-reference');
+    const optAccepted = document.getElementById('convert-opt-mark-accepted');
+    const optSwitch = document.getElementById('convert-opt-switch-view');
+
+    const isoDate = dateInput ? dateInput.value : "";
+    if (!isoDate) {
+        showToast("Bitte wählen Sie ein Rechnungsdatum aus.");
+        if (dateInput) dateInput.focus();
+        return;
+    }
+
+    const invoiceDateGerman = formatIsoToGerman(isoDate);
+    const invoiceNumber = (numInput && numInput.value.trim()) ? numInput.value.trim() : generateDocNumber("rechnung");
+    const servicePeriod = (periodInput && periodInput.value.trim()) ? periodInput.value.trim() : getCurrentMonthGerman();
+    const withReference = optRef ? optRef.checked : true;
+    const markAsAccepted = optAccepted ? optAccepted.checked : true;
+    const switchView = optSwitch ? optSwitch.checked : true;
+
+    // Build the new booked invoice
+    const newInvoice = JSON.parse(JSON.stringify(activeQuoteForConversion));
+    newInvoice.id = 'inv-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
+    newInvoice.docType = 'rechnung';
+    newInvoice.docNumber = invoiceNumber;
+    newInvoice.docDate = invoiceDateGerman; // Crucial user requirement: distinct invoice date
+    newInvoice.servicePeriod = servicePeriod;
+    newInvoice.status = 'ausgestellt';
+    newInvoice.convertedFromQuoteId = activeQuoteForConversion.id;
+    newInvoice.convertedFromQuoteNumber = activeQuoteForConversion.docNumber;
+    newInvoice.convertedAt = new Date().toISOString();
+
+    if (withReference) {
+        const refText = `Ausgeführt und abgerechnet gemäß Angebot ${activeQuoteForConversion.docNumber} vom ${activeQuoteForConversion.docDate || ''}.\n`;
+        newInvoice.notesText = refText + (newInvoice.notesText || "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.");
+    } else if (!newInvoice.notesText || newInvoice.notesText.includes('freibleibend')) {
+        newInvoice.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.";
+    }
+
+    const archive = getInvoicesArchive();
+
+    // If marked as accepted, update the original quote status in archive
+    if (markAsAccepted) {
+        const qIdx = archive.findIndex(i => String(i.id) === String(activeQuoteForConversion.id));
+        if (qIdx !== -1) {
+            archive[qIdx].quoteStatus = 'angenommen';
+            archive[qIdx].convertedInvoiceId = newInvoice.id;
+            archive[qIdx].convertedInvoiceNumber = newInvoice.docNumber;
+            archive[qIdx].convertedAt = new Date().toISOString();
+        }
+    }
+
+    // Add new invoice to archive
+    archive.unshift(newInvoice);
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+    localStorage.setItem('palnau_workspace_initialized', 'true');
+
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
+
+    closeConvertToInvoiceModal();
+
+    // Refresh screens & states
+    updateAllAppStatesAndBadges();
+    renderQuotesOverview();
+    renderOverviewInvoices();
+    if (typeof renderClientsView === 'function') renderClientsView();
+    if (typeof renderQuartersView === 'function') renderQuartersView();
+
+    showToast(`✓ Angebot ${activeQuoteForConversion.docNumber} erfolgreich als Rechnung ${newInvoice.docNumber} (${invoiceDateGerman}) übertragen!`);
+
+    if (switchView) {
+        switchAppView('overview');
+    }
 };
 
 // ==========================================================================

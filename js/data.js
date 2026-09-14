@@ -518,6 +518,230 @@ const SAMPLE_QUOTE_DATA = {
 };
 
 // ==========================================================================
+// ARCHIVIERTE ANGEBOTE (STAMMDATEN-SEED FÜR ANGEBOTS-ÜBERSICHT)
+// ==========================================================================
+const SEED_QUOTES_ARCHIVE = [
+    {
+        id: "ANG-2026-0318",
+        docType: "angebot",
+        docNumber: "ANG-2026-0318",
+        docDate: "06.03.2026",
+        dateIso: "2026-03-06",
+        year: 2026,
+        quarter: "Q1",
+        monthKey: "2026-03",
+        monthLabel: "März 2026",
+        servicePeriod: "Ausführung: April / Mai 2026",
+        taxRate: 19,
+        client: {
+            name: "Dr. Thomas Schneider",
+            street: "Kastanienallee 8",
+            zipCity: "75175 Pforzheim"
+        },
+        items: [
+            {
+                title: "Baumfällung einer Tanne (ca. 14m Höhe)",
+                description: "Fällung mittels Seilklettertechnik in Teilstücken aufgrund enger Bebauung",
+                quantity: 1,
+                unit: "Psch",
+                price: 850.00,
+                total: 850.00
+            },
+            {
+                title: "Wurzelfräsen / Wurzelstockentfernung",
+                description: "Ausfräsen des Wurzelstocks bis 25cm Tiefe inkl. Bodenausgleich",
+                quantity: 1,
+                unit: "Stk",
+                price: 150.00,
+                total: 150.00
+            },
+            {
+                title: "Maschineneinsatz - Holz- & Asthäcksler",
+                description: "Zerkleinerung des Astwerks vor Ort und Abtransport des Stammholzes",
+                quantity: 1,
+                unit: "Psch",
+                price: 220.00,
+                total: 220.00
+            },
+            {
+                title: "Rollrasen / Rasen-Neuanlage",
+                description: "Boden vorbereiten, Planum herstellen, Qualitäts-Rollrasen liefern und verlegen (ca. 60 m²)",
+                quantity: 60,
+                unit: "m²",
+                price: 28.00,
+                total: 1680.00
+            }
+        ],
+        notesText: "Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig. Bei Zusage bitten wir um kurze Bestätigung.",
+        netTotal: 2900.00,
+        taxAmount: 551.00,
+        grossTotal: 3451.00,
+        totalNet: 2900.00,
+        totalTax: 551.00,
+        totalGross: 3451.00,
+        status: "offen"
+    },
+    {
+        id: "ANG-2026-0315",
+        docType: "angebot",
+        docNumber: "ANG-2026-0315",
+        docDate: "03.03.2026",
+        dateIso: "2026-03-03",
+        year: 2026,
+        quarter: "Q1",
+        monthKey: "2026-03",
+        monthLabel: "März 2026",
+        servicePeriod: "Ausführung: Kalenderwoche 16/17 2026",
+        taxRate: 19,
+        client: {
+            name: "Familie Markus Weber",
+            street: "Sonnenhang 14",
+            zipCity: "75179 Pforzheim"
+        },
+        items: [
+            {
+                title: "Doppelstabmattenzaun 8/6/8 verzinkt & anthrazit",
+                description: "Lieferung und fachgerechte Montage von ca. 24 lfdm Zaunanlage H=140cm inkl. Pfosten einbetonieren",
+                quantity: 24,
+                unit: "m",
+                price: 110.00,
+                total: 2640.00
+            },
+            {
+                title: "Gartentor 1-flügelig 100x140cm",
+                description: "Inkl. Profilzylinderschloss, Drückergarnitur und Torpfosten",
+                quantity: 1,
+                unit: "Stk",
+                price: 480.00,
+                total: 480.00
+            },
+            {
+                title: "Tiefborde / Betonkanten setzen",
+                description: "Aushub, Betonfundament und Setzen von Randsteinen 100x25x8cm",
+                quantity: 14,
+                unit: "m",
+                price: 45.00,
+                total: 630.00
+            },
+            {
+                title: "Baustelleneinrichtung & Entsorgung Bodenaushub",
+                description: "Gerätebereitstellung, Anfahrt und fachgerechte Erddeponie",
+                quantity: 1,
+                unit: "Psch",
+                price: 250.00,
+                total: 250.00
+            }
+        ],
+        notesText: "Angebot gültig für 4 Wochen. Zahlungskonditionen: 30% bei Auftragsbeginn, 70% nach Fertigstellung.",
+        netTotal: 4000.00,
+        taxAmount: 760.00,
+        grossTotal: 4760.00,
+        totalNet: 4000.00,
+        totalTax: 760.00,
+        totalGross: 4760.00,
+        status: "offen"
+    },
+    {
+        id: "ANG-2026-0308",
+        docType: "angebot",
+        docNumber: "ANG-2026-0308",
+        docDate: "25.02.2026",
+        dateIso: "2026-02-25",
+        year: 2026,
+        quarter: "Q1",
+        monthKey: "2026-02",
+        monthLabel: "Februar 2026",
+        servicePeriod: "Ausführung: März / April 2026",
+        taxRate: 19,
+        client: {
+            name: "Hausverwaltung Residenz Pforzheim",
+            street: "Bleichstraße 42",
+            zipCity: "75173 Pforzheim"
+        },
+        items: [
+            {
+                title: "Frühjahrs-Heckenschnitt & Rabattenpflege",
+                description: "Kompletter Rückschnitt aller Hainbuchen- und Ligusterhecken auf dem Gesamtareal",
+                quantity: 16,
+                unit: "Std",
+                price: 58.00,
+                total: 928.00
+            },
+            {
+                title: "Häckseln & Schnittgutentsorgung",
+                description: "Häckseln vor Ort und Abfuhr von ca. 8 m³ Grüngut",
+                quantity: 1,
+                unit: "Psch",
+                price: 280.00,
+                total: 280.00
+            },
+            {
+                title: "Rindenmulch Feinabsiebung liefern & verteilen",
+                description: "Unkrautunterdrückung auf Beeten und Strauchflächen ca. 4 m³",
+                quantity: 4,
+                unit: "m³",
+                price: 65.00,
+                total: 260.00
+            }
+        ],
+        notesText: "Pauschalangebot für die Wohnanlage Residenz. Festpreisgarantie bei Zusage innerhalb von 14 Tagen.",
+        netTotal: 1468.00,
+        taxAmount: 278.92,
+        grossTotal: 1746.92,
+        totalNet: 1468.00,
+        totalTax: 278.92,
+        totalGross: 1746.92,
+        status: "in_abstimmung"
+    },
+    {
+        id: "ANG-2026-0220",
+        docType: "angebot",
+        docNumber: "ANG-2026-0220",
+        docDate: "12.02.2026",
+        dateIso: "2026-02-12",
+        year: 2026,
+        quarter: "Q1",
+        monthKey: "2026-02",
+        monthLabel: "Februar 2026",
+        servicePeriod: "Ausführung: März 2026",
+        taxRate: 19,
+        client: {
+            name: "Architekturbüro K. Hoffmann",
+            street: "Westliche Karl-Friedrich-Str. 88",
+            zipCity: "75172 Pforzheim"
+        },
+        items: [
+            {
+                title: "Terrassensanierung Natursteinplatten Travertin",
+                description: "Alten Belag aufnehmen, Schottertragschicht ausgleichen und verdichten, Travertinplatten 60x40 im Splittbett verlegen (ca. 45 m²)",
+                quantity: 45,
+                unit: "m²",
+                price: 135.00,
+                total: 6075.00
+            },
+            {
+                title: "Edelstahl-Entwässerungsrinne einbauen",
+                description: "Fassadenrinne mit Maschenrost inkl. Anschluss an Fallrohr",
+                quantity: 9,
+                unit: "m",
+                price: 95.00,
+                total: 855.00
+            }
+        ],
+        notesText: "Projekt Stadtvilla Pforzheim. Gültig bis 15.03.2026. Umgewandelt in Rechnung RE-2026-1049.",
+        netTotal: 6930.00,
+        taxAmount: 1316.70,
+        grossTotal: 8246.70,
+        totalNet: 6930.00,
+        totalTax: 1316.70,
+        totalGross: 8246.70,
+        status: "angenommen",
+        convertedInvoiceNumber: "RE-2026-1049",
+        convertedDate: "05.03.2026"
+    }
+];
+
+// ==========================================================================
 // ARCHIVIERTE RECHNUNGEN (STAMMDATEN-SEED FÜR RECHNUNGS-ÜBERSICHT)
 // Nur abgeschlossene & ausgestellte Rechnungen (mit Quartals-, Monats- und Jahresbezug)
 // ==========================================================================

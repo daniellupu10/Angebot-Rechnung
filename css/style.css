@@ -1175,13 +1175,19 @@ body {
         background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
-        height: 100% !important;
+        width: 210mm !important;
+        height: 297mm !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        overflow: hidden !important;
     }
 
+    /* Hide ALL screens, launchers, sidebars, modals and overlays */
     .app-container,
     #app-main-shell,
+    #app-launcher-menu,
+    .neu-view-screen,
+    .launcher-screen,
     .neu-sidebar, 
     .neu-canvas, 
     .catalog-modal-backdrop, 
@@ -1194,36 +1200,44 @@ body {
     }
 
     #clean-pdf-document {
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: space-between !important;
-        position: static !important;
-        left: auto !important;
-        top: auto !important;
-        z-index: auto !important;
+        display: block !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 99999 !important;
         box-shadow: none !important;
-        margin: 0 auto !important;
-        width: 100% !important;
+        margin: 0 !important;
+        width: 210mm !important;
         max-width: 210mm !important;
-        min-height: 296mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        max-height: 297mm !important;
         box-sizing: border-box !important;
-        padding: 14mm 16mm 12mm 16mm !important;
+        padding: 14mm 16mm 38mm 16mm !important;
         background: #ffffff !important;
-        page-break-after: auto;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+        overflow: hidden !important;
     }
 
     .clean-body-content {
-        flex: 1 0 auto !important;
         display: block !important;
+        width: 100% !important;
     }
 
     .clean-footer {
-        margin-top: auto !important;
-        flex-shrink: 0 !important;
-        font-size: 9px !important;
-        color: #777777 !important;
-        border-top: 1px solid #dddddd !important;
-        padding-top: 12px !important;
+        position: absolute !important;
+        bottom: 12mm !important;
+        left: 16mm !important;
+        right: 16mm !important;
+        width: calc(210mm - 32mm) !important;
+        margin: 0 !important;
+        font-size: 8.5px !important;
+        color: #555555 !important;
+        border-top: 1px solid #cccccc !important;
+        padding-top: 10px !important;
+        background: #ffffff !important;
+        box-sizing: border-box !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
     }
@@ -1784,6 +1798,10 @@ body {
 
 .icon-uebersicht {
     background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4338ca 100%);
+}
+
+.icon-angebote {
+    background: linear-gradient(135deg, #059669 0%, #0d9488 50%, #0f766e 100%);
 }
 
 .icon-erechnung {
@@ -3822,6 +3840,131 @@ body {
         opacity: 1;
     }
 }
+
+/* ==========================================================================
+   ANGEBOTS-ÜBERSICHT & CONVERSION WORKFLOW STYLES
+   ========================================================================== */
+
+/* Toggle Tabs for switching between Invoices and Quotes */
+.neu-screen-header-tabs {
+    display: inline-flex;
+    align-items: center;
+    background: #e2e8f0;
+    padding: 4px;
+    border-radius: 10px;
+    gap: 4px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.neu-view-toggle-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.neu-view-toggle-tab:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.neu-view-toggle-tab.active {
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.neu-view-toggle-tab.active.tab-quotes-active {
+    color: #065f46;
+}
+
+.tab-mini-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.neu-view-toggle-tab.active .tab-mini-badge {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+.neu-view-toggle-tab.active.tab-quotes-active .tab-mini-badge {
+    background: #059669;
+    color: #ffffff;
+}
+
+/* Quote Action Button: Als Rechnung buchen */
+.btn-card-action.btn-action-convert {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid #059669 !important;
+    font-weight: 700 !important;
+    padding: 5px 12px !important;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25) !important;
+}
+
+.btn-card-action.btn-action-convert:hover {
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+    border-color: #047857 !important;
+    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.4) !important;
+    transform: translateY(-1px);
+}
+
+/* Quote Status Badges */
+.card-status-badge.status-quote-offen {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+}
+
+.card-status-badge.status-quote-abstimmung {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+
+.card-status-badge.status-quote-angenommen {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+    font-weight: 700;
+}
+
+/* Date Helper in Conversion Modal */
+.convert-date-quick-btn {
+    padding: 4px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 0.78rem;
+    color: #334155;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.convert-date-quick-btn:hover {
+    border-color: #0284c7;
+    color: #0284c7;
+    background: #f0f9ff;
+}
+
 
 
 
