@@ -136,13 +136,24 @@ window.onPalnauCloudDataUpdated = function(info) {
             if (matching && typeof editInvoiceInGenerator === 'function') {
                 editInvoiceInGenerator(matching.id);
             } else if (!matching) {
-                // The open invoice was deleted on another device!
+                // The open invoice was deleted on another device:
+                // Silently reset document state without showing any confirmation dialog on this device!
                 appState.activeArchiveId = null;
-                if (typeof resetCurrentDoc === 'function') {
-                    resetCurrentDoc();
-                } else if (typeof renderAll === 'function') {
+                if (typeof closeAppConfirm === 'function') closeAppConfirm();
+                if (typeof startCleanState === 'function') {
+                    startCleanState();
+                }
+                if (typeof renderAll === 'function') {
                     renderAll();
                 }
+                const badge = document.getElementById('gen-active-status-badge');
+                if (badge) {
+                    badge.textContent = "Modus: Neuer Beleg";
+                    badge.style.borderColor = '';
+                    badge.style.color = '';
+                }
+                const btnDeleteActive = document.getElementById('btn-delete-active-doc');
+                if (btnDeleteActive) btnDeleteActive.style.display = 'none';
             }
         }
     } catch (e) {
@@ -361,11 +372,12 @@ function renderTable() {
     if (appState.items.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align:center; color:#94a3b8; padding:36px 12px; font-style:italic;">
+                <td colspan="8" style="text-align:center; color:#94a3b8; padding:36px 12px; font-style:italic;">
                     Noch keine Positionen vorhanden. Klicken Sie unten auf <strong>"Leistung aus Katalog wählen (20+)"</strong> oder <strong>"Freie Position anlegen"</strong>.
                 </td>
             </tr>
         `;
+        if (typeof updateDocItemsSelectedState === 'function') updateDocItemsSelectedState();
         return;
     }
 
@@ -373,7 +385,11 @@ function renderTable() {
         const tr = document.createElement('tr');
         tr.className = 'table-row-item';
         tr.innerHTML = `
-            <td class="col-pos" style="text-align: center; font-weight: 700; color: #64748b; font-size: 13px;">${index + 1}</td>
+            <td class="col-chk" style="text-align: center; vertical-align: middle;">
+                <input type="checkbox" class="doc-item-chk" data-index="${index}" onchange="updateDocItemsSelectedState()" style="width: 15px; height: 15px; accent-color: #0284c7; cursor: pointer;">
+            </td>
+
+            <td class="col-pos" style="text-align: center; font-weight: 700; color: #64748b; font-size: 13px; vertical-align: middle;">${index + 1}</td>
 
             <td class="col-desc">
                 <input type="text" class="item-title-field" value="${escapeHtml(item.title)}" placeholder="Bezeichnung (z. B. Heckenschnitt)..." oninput="updateRowItem(${index}, 'title', this.value)">
@@ -404,7 +420,7 @@ function renderTable() {
                 ${formatCurrency(item.total)}
             </td>
 
-            <td class="col-delete" style="text-align: center;">
+            <td class="col-delete" style="text-align: center; vertical-align: middle;">
                 <button type="button" class="row-action-delete" title="Position löschen" onclick="event.stopPropagation(); removeItemFromDoc(${index}); return false;">✕</button>
             </td>
         `;
@@ -416,7 +432,106 @@ function renderTable() {
             autoResizeTextarea(descTextarea);
         }
     });
+
+    if (typeof updateDocItemsSelectedState === 'function') updateDocItemsSelectedState();
 }
+
+window.toggleSelectAllDocItems = function(forceChecked) {
+    const checkboxes = document.querySelectorAll('.doc-item-chk');
+    if (checkboxes.length === 0) return;
+    
+    let targetState;
+    if (typeof forceChecked === 'boolean') {
+        targetState = forceChecked;
+    } else {
+        const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+        targetState = anyUnchecked;
+    }
+
+    checkboxes.forEach(cb => {
+        cb.checked = targetState;
+    });
+
+    updateDocItemsSelectedState();
+};
+
+window.updateDocItemsSelectedState = function() {
+    const checkboxes = document.querySelectorAll('.doc-item-chk');
+    const checked = Array.from(checkboxes).filter(cb => cb.checked);
+    const count = checked.length;
+    const total = checkboxes.length;
+
+    const barButtons = document.getElementById('doc-items-bulk-buttons');
+    const badge = document.getElementById('doc-items-selected-badge');
+    const topChk = document.getElementById('table-select-all-chk');
+    const headerChk = document.getElementById('header-col-select-all');
+    const topLabel = document.getElementById('table-select-all-label-text');
+
+    if (badge) {
+        badge.textContent = `${count} von ${total} gewählt`;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+    if (barButtons) {
+        barButtons.style.display = count > 0 ? 'flex' : 'none';
+    }
+    if (topLabel) {
+        topLabel.textContent = (count === total && total > 0) ? 'Alle abwählen' : 'Alle auswählen';
+    }
+    if (topChk) {
+        topChk.checked = count === total && total > 0;
+        topChk.indeterminate = count > 0 && count < total;
+    }
+    if (headerChk) {
+        headerChk.checked = count === total && total > 0;
+        headerChk.indeterminate = count > 0 && count < total;
+    }
+};
+
+window.deleteSelectedDocItems = function() {
+    const checkboxes = document.querySelectorAll('.doc-item-chk:checked');
+    if (checkboxes.length === 0) return;
+    
+    // Get indexes in descending order
+    const indicesToDelete = Array.from(checkboxes)
+        .map(cb => parseInt(cb.getAttribute('data-index'), 10))
+        .filter(idx => !isNaN(idx))
+        .sort((a, b) => b - a);
+
+    indicesToDelete.forEach(idx => {
+        if (appState.items && idx >= 0 && idx < appState.items.length) {
+            appState.items.splice(idx, 1);
+        }
+    });
+
+    renderTable();
+    updateTotals();
+    updateSmartDock();
+    saveState();
+    showToast(`${indicesToDelete.length} Position(en) entfernt.`);
+};
+
+window.duplicateSelectedDocItems = function() {
+    const checkboxes = document.querySelectorAll('.doc-item-chk:checked');
+    if (checkboxes.length === 0) return;
+
+    const indicesToDuplicate = Array.from(checkboxes)
+        .map(cb => parseInt(cb.getAttribute('data-index'), 10))
+        .filter(idx => !isNaN(idx))
+        .sort((a, b) => a - b);
+
+    indicesToDuplicate.forEach(idx => {
+        const item = appState.items[idx];
+        if (item) {
+            appState.items.push(JSON.parse(JSON.stringify(item)));
+        }
+    });
+
+    renderTable();
+    updateTotals();
+    updateSmartDock();
+    saveState();
+    showToast(`${indicesToDuplicate.length} Position(en) dupliziert.`);
+};
 
 // Calculate Totals
 function calculateTotals() {
@@ -602,72 +717,74 @@ function renderCleanDocument() {
     }
 
     cleanContainer.innerHTML = `
-        <!-- Header -->
-        <div class="clean-header">
-            <div class="clean-company-info">
-                <strong style="font-size:13px; color:#222;">Palnau Gartenbau GmbH</strong><br>
-                Reihelberg 3, 75210 Keltern-Dietlingen<br>
-                Tel: 07231 466641 | Email: gartenbauu@gmail.com
+        <div class="clean-body-content">
+            <!-- Header -->
+            <div class="clean-header">
+                <div class="clean-company-info">
+                    <strong style="font-size:13px; color:#222;">Palnau Gartenbau GmbH</strong><br>
+                    Reihelberg 3, 75210 Keltern-Dietlingen<br>
+                    Tel: 07231 466641 | Email: gartenbauu@gmail.com
+                </div>
+            </div>
+
+            <!-- Client Address -->
+            <div class="clean-client-address">
+                <div class="clean-return-line">Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen</div>
+                <strong>${escapeHtml(appState.client.name || 'Max Mustermann')}</strong><br>
+                ${escapeHtml(appState.client.street || '')}<br>
+                ${escapeHtml(appState.client.zipCity || '')}
+            </div>
+
+            <!-- Document Meta Details (Right Aligned) -->
+            <div class="clean-doc-details">
+                <strong>${isQuote ? 'Angebot Nr.:' : 'Rechnung Nr.:'}</strong> ${escapeHtml(appState.docNumber)}<br>
+                <strong>Datum:</strong> ${escapeHtml(appState.docDate)}<br>
+                <strong>${isQuote ? 'Gültig bis / Zeitraum:' : 'Leistungszeitraum:'}</strong> ${escapeHtml(appState.servicePeriod)}
+            </div>
+
+            <!-- Document Heading (H1) -->
+            <h1 class="clean-h1-title">${isQuote ? 'ANGEBOT' : 'RECHNUNG'}</h1>
+
+            <!-- Pure Items Table -->
+            <table class="clean-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30px; text-align: center;">Pos.</th>
+                        <th>Beschreibung</th>
+                        <th style="width: 50px; text-align: right;">Menge</th>
+                        <th style="width: 45px; text-align: center;">Einheit</th>
+                        <th style="width: 75px; text-align: right;">Einzelpreis</th>
+                        <th style="width: 80px; text-align: right;">Gesamt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+
+            <!-- Totals Box -->
+            <div class="clean-totals">
+                <div class="clean-total-row">
+                    <span>Zwischensumme (Netto):</span>
+                    <span>${formatCurrency(totals.netTotal)}</span>
+                </div>
+                <div class="clean-total-row">
+                    <span>Umsatzsteuer ${appState.taxRate}%:</span>
+                    <span>${formatCurrency(totals.taxAmount)}</span>
+                </div>
+                <div class="clean-total-row grand">
+                    <span>${isQuote ? 'Angebotsbetrag:' : 'Rechnungsbetrag:'}</span>
+                    <span>${formatCurrency(totals.grossTotal)}</span>
+                </div>
+            </div>
+
+            <!-- Notes / Terms -->
+            <div class="clean-notes">
+                <p>${escapeHtml(appState.notesText)}</p>
             </div>
         </div>
 
-        <!-- Client Address -->
-        <div class="clean-client-address">
-            <div class="clean-return-line">Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen</div>
-            <strong>${escapeHtml(appState.client.name || 'Max Mustermann')}</strong><br>
-            ${escapeHtml(appState.client.street || '')}<br>
-            ${escapeHtml(appState.client.zipCity || '')}
-        </div>
-
-        <!-- Document Meta Details (Right Aligned) -->
-        <div class="clean-doc-details">
-            <strong>${isQuote ? 'Angebot Nr.:' : 'Rechnung Nr.:'}</strong> ${escapeHtml(appState.docNumber)}<br>
-            <strong>Datum:</strong> ${escapeHtml(appState.docDate)}<br>
-            <strong>${isQuote ? 'Gültig bis / Zeitraum:' : 'Leistungszeitraum:'}</strong> ${escapeHtml(appState.servicePeriod)}
-        </div>
-
-        <!-- Document Heading (H1) -->
-        <h1 class="clean-h1-title">${isQuote ? 'ANGEBOT' : 'RECHNUNG'}</h1>
-
-        <!-- Pure Items Table -->
-        <table class="clean-table">
-            <thead>
-                <tr>
-                    <th style="width: 30px; text-align: center;">Pos.</th>
-                    <th>Beschreibung</th>
-                    <th style="width: 50px; text-align: right;">Menge</th>
-                    <th style="width: 45px; text-align: center;">Einheit</th>
-                    <th style="width: 75px; text-align: right;">Einzelpreis</th>
-                    <th style="width: 80px; text-align: right;">Gesamt</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${itemsHtml}
-            </tbody>
-        </table>
-
-        <!-- Totals Box -->
-        <div class="clean-totals">
-            <div class="clean-total-row">
-                <span>Zwischensumme (Netto):</span>
-                <span>${formatCurrency(totals.netTotal)}</span>
-            </div>
-            <div class="clean-total-row">
-                <span>Umsatzsteuer ${appState.taxRate}%:</span>
-                <span>${formatCurrency(totals.taxAmount)}</span>
-            </div>
-            <div class="clean-total-row grand">
-                <span>${isQuote ? 'Angebotsbetrag:' : 'Rechnungsbetrag:'}</span>
-                <span>${formatCurrency(totals.grossTotal)}</span>
-            </div>
-        </div>
-
-        <!-- Notes / Terms -->
-        <div class="clean-notes">
-            <p>${escapeHtml(appState.notesText)}</p>
-        </div>
-
-        <!-- Footer (3 Columns) -->
+        <!-- Footer (3 Columns) - Fixed at bottom of page -->
         <div class="clean-footer">
             <div class="clean-footer-grid">
                 <div>
@@ -909,11 +1026,16 @@ function exportToPdf() {
     showToast("PDF wird generiert & Menüs aktualisiert...");
 
     // Make clean document visible for natural layout flow in html2pdf container
-    // Do NOT set minHeight (which caused minor subpixel overflow to generate a blank 2nd page)
-    cleanElement.style.display = 'block';
+    // Pinned footer layout: flex column with min-height matching A4 (1116px ≈ 295.3mm)
+    cleanElement.style.display = 'flex';
+    cleanElement.style.flexDirection = 'column';
+    cleanElement.style.justifyContent = 'space-between';
     cleanElement.style.position = 'static';
     cleanElement.style.width = '794px';
     cleanElement.style.maxWidth = '794px';
+    cleanElement.style.minHeight = '1116px';
+    cleanElement.style.boxSizing = 'border-box';
+    cleanElement.style.padding = '32px 42px 24px 42px';
     cleanElement.style.margin = '0 auto';
     cleanElement.style.backgroundColor = '#ffffff';
 
@@ -925,6 +1047,10 @@ function exportToPdf() {
         cleanElement.style.width = '';
         cleanElement.style.maxWidth = '';
         cleanElement.style.minHeight = '';
+        cleanElement.style.boxSizing = '';
+        cleanElement.style.padding = '';
+        cleanElement.style.flexDirection = '';
+        cleanElement.style.justifyContent = '';
         cleanElement.style.margin = '';
         cleanElement.style.backgroundColor = '';
         cleanElement.style.zIndex = '';
@@ -962,8 +1088,8 @@ function exportToPdf() {
         .get('pdf')
         .then((pdf) => {
             const totalPages = pdf.internal.getNumberOfPages();
-            // If an unwanted trailing white page is generated, safely remove it
-            if (totalPages > 1) {
+            // If an unwanted trailing white page is generated on single-page doc, safely remove it
+            if (totalPages > 1 && cleanElement.offsetHeight <= 1125) {
                 pdf.deletePage(totalPages);
             }
         })
@@ -983,6 +1109,13 @@ function exportToPdf() {
             }, 300);
         });
 }
+
+// Ensure clean document is populated before any print action
+window.addEventListener('beforeprint', () => {
+    if (typeof renderCleanDocument === 'function') {
+        renderCleanDocument();
+    }
+});
 
 // Escape HTML
 function escapeHtml(text) {
@@ -1345,80 +1478,65 @@ window.deleteInvoiceFromArchive = function(invoiceId) {
     const target = archive.find(inv => String(inv.id) === String(invoiceId));
     const docNum = target ? target.docNumber : `Beleg #${invoiceId}`;
 
-    showAppConfirm(
-        `Sind Sie sicher, dass Sie den Beleg "${docNum}" dauerhaft aus dem Rechnungsarchiv löschen möchten?`,
-        () => {
-            markInvoiceAsDeleted(invoiceId, target ? target.docNumber : null);
-            const updated = archive.filter(inv => String(inv.id) !== String(invoiceId));
-            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
-            localStorage.setItem('palnau_workspace_initialized', 'true');
-            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
-                window.PalnauCloudSync.pushLocalToCloud(true);
-            }
+    markInvoiceAsDeleted(invoiceId, target ? target.docNumber : null);
+    const updated = archive.filter(inv => String(inv.id) !== String(invoiceId));
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem('palnau_workspace_initialized', 'true');
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud(true);
+    }
 
-            // If the deleted invoice was currently open in editor, clear its reference
-            if (appState.activeArchiveId && String(appState.activeArchiveId) === String(invoiceId)) {
-                appState.activeArchiveId = null;
-                const badge = document.getElementById('gen-active-status-badge');
-                if (badge) {
-                    badge.textContent = "Modus: Neuer Beleg";
-                    badge.style.borderColor = '';
-                    badge.style.color = '';
-                }
-                const btnDeleteActive = document.getElementById('btn-delete-active-doc');
-                if (btnDeleteActive) btnDeleteActive.style.display = 'none';
-            }
+    // If the deleted invoice was currently open in editor, clear its reference
+    if (appState.activeArchiveId && String(appState.activeArchiveId) === String(invoiceId)) {
+        appState.activeArchiveId = null;
+        if (typeof closeAppConfirm === 'function') closeAppConfirm();
+        startCleanState();
+        const badge = document.getElementById('gen-active-status-badge');
+        if (badge) {
+            badge.textContent = "Modus: Neuer Beleg";
+            badge.style.borderColor = '';
+            badge.style.color = '';
+        }
+        const btnDeleteActive = document.getElementById('btn-delete-active-doc');
+        if (btnDeleteActive) btnDeleteActive.style.display = 'none';
+    }
 
-            if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
-            if (typeof renderClientsView === 'function') renderClientsView();
-            if (typeof renderQuartersView === 'function') renderQuartersView();
-            if (typeof renderERechnungHub === 'function') renderERechnungHub();
-            if (typeof renderAll === 'function') renderAll();
-            updateAllAppStatesAndBadges();
-            showToast(`${docNum} erfolgreich gelöscht.`);
-        },
-        { title: "Beleg löschen" }
-    );
+    if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+    if (typeof renderClientsView === 'function') renderClientsView();
+    if (typeof renderQuartersView === 'function') renderQuartersView();
+    if (typeof renderERechnungHub === 'function') renderERechnungHub();
+    if (typeof renderAll === 'function') renderAll();
+    updateAllAppStatesAndBadges();
+    showToast(`${docNum} erfolgreich gelöscht.`);
 };
 
 window.deleteClient = function(clientName) {
     if (!clientName) return;
     const archive = getInvoicesArchive();
     const clientInvoices = archive.filter(inv => (inv.client && inv.client.name) === clientName);
-    const count = clientInvoices.length;
 
-    const confirmMsg = count > 0
-        ? `Möchten Sie den Kunden "${clientName}" und alle ${count} zugehörigen Belege wirklich unwiderruflich löschen?`
-        : `Möchten Sie den Kunden "${clientName}" wirklich aus der Kartei löschen?`;
+    clientInvoices.forEach(inv => {
+        markInvoiceAsDeleted(inv.id, inv.docNumber);
+    });
 
-    showAppConfirm(
-        confirmMsg,
-        () => {
-            clientInvoices.forEach(inv => {
-                markInvoiceAsDeleted(inv.id, inv.docNumber);
-            });
+    const updated = archive.filter(inv => !(inv.client && inv.client.name === clientName));
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem('palnau_workspace_initialized', 'true');
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud(true);
+    }
 
-            const updated = archive.filter(inv => !(inv.client && inv.client.name === clientName));
-            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
-            localStorage.setItem('palnau_workspace_initialized', 'true');
-            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
-                window.PalnauCloudSync.pushLocalToCloud(true);
-            }
+    if (appState && appState.client && appState.client.name === clientName) {
+        appState.activeArchiveId = null;
+    }
 
-            if (appState && appState.client && appState.client.name === clientName) {
-                appState.activeArchiveId = null;
-            }
-
-            renderClientsView();
-            if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
-            if (typeof renderQuartersView === 'function') renderQuartersView();
-            if (typeof renderERechnungHub === 'function') renderERechnungHub();
-            if (typeof renderAll === 'function') renderAll();
-            updateAllAppStatesAndBadges();
-            showToast(`Kunde "${clientName}" wurde erfolgreich gelöscht.`);
-        },
-        { title: "Kunde löschen" }
-    );
+    renderClientsView();
+    if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+    if (typeof renderQuartersView === 'function') renderQuartersView();
+    if (typeof renderERechnungHub === 'function') renderERechnungHub();
+    if (typeof renderAll === 'function') renderAll();
+    updateAllAppStatesAndBadges();
+    showToast(`Kunde "${clientName}" wurde erfolgreich gelöscht.`);
 };
 
 window.clearAllInvoicesArchive = function() {
@@ -1857,7 +1975,10 @@ window.renderOverviewInvoices = function() {
             <div class="overview-invoice-card" id="card-${inv.id}">
                 <!-- Meta: Doc number & Date -->
                 <div class="card-col-meta">
-                    <span class="card-doc-num">${escapeHtml(inv.docNumber)}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" class="overview-invoice-chk" value="${inv.id}" onchange="updateOverviewSelectedState()" style="width: 16px; height: 16px; accent-color: #0284c7; cursor: pointer;">
+                        <span class="card-doc-num">${escapeHtml(inv.docNumber)}</span>
+                    </div>
                     <span class="card-doc-date">Datum: ${escapeHtml(inv.docDate)}</span>
                     <span class="card-status-badge">Ausgestellt</span>
                 </div>
@@ -1895,6 +2016,93 @@ window.renderOverviewInvoices = function() {
     });
 
     listContainer.innerHTML = cardsHtml;
+    if (typeof updateOverviewSelectedState === 'function') updateOverviewSelectedState();
+};
+
+window.toggleSelectAllOverviewInvoices = function(forceChecked) {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk');
+    if (checkboxes.length === 0) return;
+
+    let targetState;
+    if (typeof forceChecked === 'boolean') {
+        targetState = forceChecked;
+    } else {
+        const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+        targetState = anyUnchecked;
+    }
+
+    checkboxes.forEach(cb => {
+        cb.checked = targetState;
+    });
+
+    updateOverviewSelectedState();
+};
+
+window.updateOverviewSelectedState = function() {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk');
+    const checked = Array.from(checkboxes).filter(cb => cb.checked);
+    const count = checked.length;
+    const total = checkboxes.length;
+
+    const actions = document.getElementById('overview-selected-actions');
+    const counter = document.getElementById('overview-selected-counter');
+    const topChk = document.getElementById('overview-select-all-chk');
+    const labelText = document.getElementById('overview-select-all-label-text');
+
+    if (counter) {
+        counter.textContent = `${count} von ${total} Belegen ausgewählt`;
+        counter.style.display = count > 0 ? 'inline' : 'none';
+    }
+    if (actions) {
+        actions.style.display = count > 0 ? 'flex' : 'none';
+    }
+    if (labelText) {
+        labelText.textContent = (count === total && total > 0) ? 'Alle abwählen' : 'Alle auswählen';
+    }
+    if (topChk) {
+        topChk.checked = count === total && total > 0;
+        topChk.indeterminate = count > 0 && count < total;
+    }
+};
+
+window.deleteSelectedOverviewInvoices = function() {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk:checked');
+    if (checkboxes.length === 0) {
+        showToast("Keine Belege ausgewählt.");
+        return;
+    }
+
+    const idsToDelete = Array.from(checkboxes).map(cb => cb.value).filter(Boolean);
+    const count = idsToDelete.length;
+
+    const archive = getInvoicesArchive();
+    idsToDelete.forEach(id => {
+        const inv = archive.find(i => String(i.id) === String(id));
+        markInvoiceAsDeleted(id, inv ? inv.docNumber : null);
+    });
+
+    const updated = archive.filter(inv => !idsToDelete.includes(String(inv.id)));
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem('palnau_workspace_initialized', 'true');
+
+    if (appState && idsToDelete.includes(String(appState.activeArchiveId))) {
+        appState.activeArchiveId = null;
+        if (typeof closeAppConfirm === 'function') closeAppConfirm();
+        startCleanState();
+        if (typeof renderAll === 'function') renderAll();
+    }
+
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud(true);
+    }
+
+    if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+    if (typeof renderClientsView === 'function') renderClientsView();
+    if (typeof renderQuartersView === 'function') renderQuartersView();
+    if (typeof renderERechnungHub === 'function') renderERechnungHub();
+    updateAllAppStatesAndBadges();
+
+    showToast(`${count} Belege erfolgreich gelöscht.`);
 };
 
 // ==========================================================================
@@ -2461,24 +2669,18 @@ window.saveCustomServiceToCatalog = function() {
 
 window.deleteCustomCatalogItem = function(itemId) {
     if (!itemId) return;
-    showAppConfirm(
-        "Möchten Sie diese Leistung wirklich aus dem Katalog löschen?",
-        () => {
-            let customItems = [];
-            const raw = localStorage.getItem('palnau_custom_catalog');
-            if (raw) {
-                try { customItems = JSON.parse(raw) || []; } catch (e) {}
-            }
-            customItems = customItems.filter(it => it.id !== itemId);
-            localStorage.setItem('palnau_custom_catalog', JSON.stringify(customItems));
-            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
-                window.PalnauCloudSync.pushLocalToCloud();
-            }
-            renderCatalogView();
-            showToast("Leistung aus dem Katalog gelöscht.");
-        },
-        { title: "Leistung löschen" }
-    );
+    let customItems = [];
+    const raw = localStorage.getItem('palnau_custom_catalog');
+    if (raw) {
+        try { customItems = JSON.parse(raw) || []; } catch (e) {}
+    }
+    customItems = customItems.filter(it => it.id !== itemId);
+    localStorage.setItem('palnau_custom_catalog', JSON.stringify(customItems));
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
+    renderCatalogView();
+    showToast("Leistung aus dem Katalog gelöscht.");
 };
 
 // ==========================================================================
@@ -3669,17 +3871,11 @@ window.handleSaveLoanEntry = function(event) {
 
 window.deleteLoanEntry = function(entryId) {
     if (!entryId) return;
-    showAppConfirm(
-        "Möchten Sie diesen Entnahmeposten wirklich unwiderruflich löschen?",
-        () => {
-            const loanData = getLoanData();
-            loanData.entries = (loanData.entries || []).filter(e => String(e.id) !== String(entryId));
-            saveLoanData(loanData);
-            if (typeof renderLoansView === 'function') renderLoansView();
-            showToast("Entnahmeposten gelöscht.");
-        },
-        { title: "Entnahmeposten löschen" }
-    );
+    const loanData = getLoanData();
+    loanData.entries = (loanData.entries || []).filter(e => String(e.id) !== String(entryId));
+    saveLoanData(loanData);
+    if (typeof renderLoansView === 'function') renderLoansView();
+    showToast("Entnahmeposten gelöscht.");
 };
 
 window.handleDeleteCurrentLoanEntry = function() {

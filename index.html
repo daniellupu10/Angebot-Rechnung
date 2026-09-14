@@ -95,12 +95,6 @@
                     <span class="sync-dot"></span>
                     <span class="sync-text">Cloud Sync: Verbinde...</span>
                 </div>
-                <div class="launcher-membership-pill">
-                    <svg class="launcher-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    <span>Active membership</span>
-                </div>
                 <div class="launcher-profile-avatar" title="Andrei Priala • Palnau Gartenbau GmbH">
                     <span class="avatar-initials">AP</span>
                 </div>
@@ -344,6 +338,26 @@
                         >
                         <button type="button" id="overview-search-clear" onclick="clearOverviewSearch()" title="Suche löschen" style="display: none; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 2px 8px; line-height: 1;">✕</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Bulk Action Toolbar (Select All for Invoices) -->
+            <div id="overview-bulk-actions-bar" class="overview-bulk-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label class="overview-select-all-label" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: #334155; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="overview-select-all-chk" style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllOverviewInvoices(this.checked)">
+                        <span id="overview-select-all-label-text">Alle auswählen</span>
+                    </label>
+                    <span id="overview-selected-counter" style="font-size: 0.8rem; color: #0284c7; font-weight: 700; display: none;">0 Belege ausgewählt</span>
+                </div>
+                <div id="overview-selected-actions" style="display: none; align-items: center; gap: 8px;">
+                    <button type="button" class="neu-btn" onclick="deleteSelectedOverviewInvoices()" style="font-size: 0.8rem; padding: 6px 14px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>Ausgewählte löschen</span>
+                    </button>
                 </div>
             </div>
 
@@ -1073,12 +1087,32 @@
                 <!-- H1 Document Heading -->
                 <h1 id="doc-main-title" class="doc-title-heading">RECHNUNG</h1>
 
+                <!-- Positions Bulk Action & Select All Bar -->
+                <div class="doc-table-action-bar" id="doc-items-bulk-bar" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="table-select-all-chk" style="width: 15px; height: 15px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllDocItems(this.checked)">
+                            <span id="table-select-all-label-text">Alle auswählen</span>
+                        </label>
+                        <span id="doc-items-selected-badge" style="font-size: 11px; color: #0284c7; font-weight: 600; display: none;">0 gewählt</span>
+                    </div>
+                    <div id="doc-items-bulk-buttons" style="display: none; align-items: center; gap: 6px;">
+                        <button type="button" class="neu-btn" onclick="duplicateSelectedDocItems()" style="font-size: 11px; padding: 4px 10px; border-radius: 6px;" title="Ausgewählte Positionen duplizieren">
+                            Auswahl duplizieren
+                        </button>
+                        <button type="button" class="neu-btn" onclick="deleteSelectedDocItems()" style="font-size: 11px; padding: 4px 10px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 6px; font-weight: 600;" title="Ausgewählte Positionen löschen">
+                            Auswahl löschen
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Items Table in Responsive Table Wrapper -->
                 <div class="doc-table-wrapper">
                     <table class="doc-items-table">
                         <thead>
                             <tr>
-                                <th style="width: 36px; text-align: center;">Pos.</th>
+                                <th style="width: 34px; text-align: center;"><input type="checkbox" id="header-col-select-all" style="width: 14px; height: 14px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllDocItems(this.checked)" title="Alle Positionen auswählen"></th>
+                                <th style="width: 32px; text-align: center;">Pos.</th>
                                 <th>Beschreibung</th>
                                 <th style="width: 70px; text-align: right;">Menge</th>
                                 <th style="width: 60px; text-align: center;">Einheit</th>
