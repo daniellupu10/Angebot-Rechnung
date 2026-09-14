@@ -121,13 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
 window.onPalnauCloudDataUpdated = function(info) {
     console.log("[Palnau] Remote cloud sync applied. Refreshing screens...", info);
     try {
+        if (typeof updateAllAppStatesAndBadges === 'function') updateAllAppStatesAndBadges();
         if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
         if (typeof renderClientsView === 'function') renderClientsView();
         if (typeof renderQuartersView === 'function') renderQuartersView();
         if (typeof renderERechnungHub === 'function') renderERechnungHub();
         if (typeof renderLoansView === 'function') renderLoansView();
         if (typeof renderCatalogView === 'function') renderCatalogView();
-        if (typeof updateAllAppStatesAndBadges === 'function') updateAllAppStatesAndBadges();
 
         // If an invoice is currently open in the generator, verify it still exists or was updated
         if (appState && appState.activeArchiveId) {
@@ -135,12 +135,29 @@ window.onPalnauCloudDataUpdated = function(info) {
             const matching = archive.find(inv => String(inv.id) === String(appState.activeArchiveId));
             if (matching && typeof editInvoiceInGenerator === 'function') {
                 editInvoiceInGenerator(matching.id);
+            } else if (!matching) {
+                // The open invoice was deleted on another device!
+                appState.activeArchiveId = null;
+                if (typeof resetCurrentDoc === 'function') {
+                    resetCurrentDoc();
+                } else if (typeof renderAll === 'function') {
+                    renderAll();
+                }
             }
         }
     } catch (e) {
         console.warn("Error refreshing views on cloud update:", e);
     }
 };
+
+// Multi-Tab local synchronization on same device
+window.addEventListener('storage', (event) => {
+    if (event.key === ARCHIVE_STORAGE_KEY || event.key === DELETED_INVOICES_KEY || event.key === 'palnau_loans_data' || event.key === 'palnau_custom_catalog') {
+        if (typeof window.onPalnauCloudDataUpdated === 'function') {
+            window.onPalnauCloudDataUpdated({ source: 'local-tab-storage', key: event.key });
+        }
+    }
+});
 
 function initApp() {
     const saved = localStorage.getItem('palnau_neu_studio_state');
@@ -1222,32 +1239,27 @@ window.getInvoicesArchive = function() {
     const deletedSet = getDeletedInvoicesSet();
     let list = [];
     const raw = localStorage.getItem(ARCHIVE_STORAGE_KEY);
+    const isInitialized = localStorage.getItem('palnau_workspace_initialized') === 'true';
     
-    if (!raw) {
+    if (raw === null && !isInitialized) {
+        // Only on the very first local run if workspace was never initialized
         const initialSeeds = (typeof SEED_INVOICES_ARCHIVE !== 'undefined') ? JSON.parse(JSON.stringify(SEED_INVOICES_ARCHIVE)) : [];
         list = initialSeeds.filter(seed => !deletedSet.has(String(seed.id)) && !deletedSet.has(String(seed.docNumber)));
         localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(list));
-    } else {
+        localStorage.setItem('palnau_workspace_initialized', 'true');
+    } else if (raw) {
         try {
             const parsed = JSON.parse(raw);
             list = Array.isArray(parsed) ? parsed : [];
-            // Merge newly added seed invoices only if they haven't been deleted by the user
-            if (typeof SEED_INVOICES_ARCHIVE !== 'undefined') {
-                SEED_INVOICES_ARCHIVE.forEach(seed => {
-                    const isDeleted = deletedSet.has(String(seed.id)) || deletedSet.has(String(seed.docNumber));
-                    const alreadyExists = list.some(item => item.id === seed.id || item.docNumber === seed.docNumber);
-                    if (!isDeleted && !alreadyExists) {
-                        list.push(JSON.parse(JSON.stringify(seed)));
-                    }
-                });
-            }
         } catch (e) {
-            console.warn("Corrupt archive, restoring seed", e);
+            console.warn("Corrupt archive", e);
             list = [];
         }
+    } else {
+        list = [];
     }
 
-    // Filter out any accidentally stored deleted items
+    // Filter out any deleted items
     list = list.filter(inv => !deletedSet.has(String(inv.id)) && !deletedSet.has(String(inv.docNumber)));
 
     // Normalization safeguard: ensure totalNet, totalTax, totalGross are numeric and present
@@ -1339,8 +1351,9 @@ window.deleteInvoiceFromArchive = function(invoiceId) {
             markInvoiceAsDeleted(invoiceId, target ? target.docNumber : null);
             const updated = archive.filter(inv => String(inv.id) !== String(invoiceId));
             localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+            localStorage.setItem('palnau_workspace_initialized', 'true');
             if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
-                window.PalnauCloudSync.pushLocalToCloud();
+                window.PalnauCloudSync.pushLocalToCloud(true);
             }
 
             // If the deleted invoice was currently open in editor, clear its reference
@@ -1387,8 +1400,9 @@ window.deleteClient = function(clientName) {
 
             const updated = archive.filter(inv => !(inv.client && inv.client.name === clientName));
             localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(updated));
+            localStorage.setItem('palnau_workspace_initialized', 'true');
             if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
-                window.PalnauCloudSync.pushLocalToCloud();
+                window.PalnauCloudSync.pushLocalToCloud(true);
             }
 
             if (appState && appState.client && appState.client.name === clientName) {
@@ -1404,6 +1418,38 @@ window.deleteClient = function(clientName) {
             showToast(`Kunde "${clientName}" wurde erfolgreich gelöscht.`);
         },
         { title: "Kunde löschen" }
+    );
+};
+
+window.clearAllInvoicesArchive = function() {
+    const archive = getInvoicesArchive();
+    if (archive.length === 0) {
+        showToast("Das Rechnungsarchiv ist bereits leer.");
+        return;
+    }
+    showAppConfirm(
+        `Möchten Sie wirklich ALLE ${archive.length} Belege unwiderruflich aus dem Rechnungsarchiv und Cloud-Speicher aller Geräte löschen?`,
+        () => {
+            archive.forEach(inv => {
+                markInvoiceAsDeleted(inv.id, inv.docNumber);
+            });
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify([]));
+            localStorage.setItem('palnau_workspace_initialized', 'true');
+            if (appState) {
+                appState.activeArchiveId = null;
+            }
+            if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+                window.PalnauCloudSync.pushLocalToCloud(true);
+            }
+            if (typeof renderOverviewInvoices === 'function') renderOverviewInvoices();
+            if (typeof renderClientsView === 'function') renderClientsView();
+            if (typeof renderQuartersView === 'function') renderQuartersView();
+            if (typeof renderERechnungHub === 'function') renderERechnungHub();
+            if (typeof renderAll === 'function') renderAll();
+            updateAllAppStatesAndBadges();
+            showToast("Alle Belege wurden erfolgreich gelöscht.");
+        },
+        { title: "Gesamtes Archiv leeren", confirmText: "Alle löschen", btnColor: "#e11d48" }
     );
 };
 

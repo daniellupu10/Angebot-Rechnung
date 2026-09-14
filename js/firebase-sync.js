@@ -104,119 +104,47 @@ function applyRemoteDataToLocal(remoteData) {
     isApplyingRemoteUpdate = true;
 
     try {
-        // 1. Process Deleted Invoices Set first
-        let localDeleted = [];
-        try {
-            const rawDel = localStorage.getItem(DELETED_KEY);
-            if (rawDel) localDeleted = JSON.parse(rawDel) || [];
-        } catch (e) {}
-
+        // 1. Process Deleted Invoices Set
         const remoteDeleted = Array.isArray(remoteData.deletedInvoices) ? remoteData.deletedInvoices : [];
-        const combinedDeletedSet = new Set([...localDeleted.map(String), ...remoteDeleted.map(String)]);
-        localStorage.setItem(DELETED_KEY, JSON.stringify(Array.from(combinedDeletedSet)));
+        localStorage.setItem(DELETED_KEY, JSON.stringify(remoteDeleted));
 
-        // 2. Process Invoices Archive
-        let localArchive = [];
-        try {
-            const rawArch = localStorage.getItem(ARCHIVE_KEY);
-            if (rawArch) localArchive = JSON.parse(rawArch) || [];
-        } catch (e) {}
-
+        // 2. Process Invoices Archive - Cloud is the authoritative source of truth
         const remoteArchive = Array.isArray(remoteData.invoicesArchive) ? remoteData.invoicesArchive : [];
+        const deletedSet = new Set(remoteDeleted.map(String));
         
-        // Merge map by ID
-        const archiveMap = new Map();
-
-        // Add remote items first (filtering out deleted)
-        remoteArchive.forEach(inv => {
-            if (inv && inv.id) {
-                const idStr = String(inv.id);
-                const numStr = String(inv.docNumber || '');
-                if (!combinedDeletedSet.has(idStr) && !combinedDeletedSet.has(numStr)) {
-                    archiveMap.set(idStr, inv);
-                }
-            }
+        // Filter out any explicitly deleted records
+        const finalArchive = remoteArchive.filter(inv => {
+            if (!inv || !inv.id) return false;
+            const idStr = String(inv.id);
+            const numStr = String(inv.docNumber || '');
+            return !deletedSet.has(idStr) && !deletedSet.has(numStr);
         });
 
-        // Merge local items: keep whichever has newer updatedAt, or keep local if not in remote
-        localArchive.forEach(localInv => {
-            if (localInv && localInv.id) {
-                const idStr = String(localInv.id);
-                const numStr = String(localInv.docNumber || '');
-                if (combinedDeletedSet.has(idStr) || combinedDeletedSet.has(numStr)) {
-                    return; // deleted
-                }
-
-                if (!archiveMap.has(idStr)) {
-                    archiveMap.set(idStr, localInv);
-                } else {
-                    const remoteInv = archiveMap.get(idStr);
-                    const remoteTime = new Date(remoteInv.updatedAt || remoteInv.createdAt || 0).getTime();
-                    const localTime = new Date(localInv.updatedAt || localInv.createdAt || 0).getTime();
-                    if (localTime > remoteTime) {
-                        archiveMap.set(idStr, localInv);
-                    }
-                }
-            }
-        });
-
-        const mergedArchive = Array.from(archiveMap.values());
-        // Sort newest first
-        mergedArchive.sort((a, b) => {
-            const tA = new Date(a.updatedAt || a.createdAt || a.date || a.docDate || 0).getTime();
-            const tB = new Date(b.updatedAt || b.createdAt || b.date || b.docDate || 0).getTime();
-            return tB - tA;
-        });
-
-        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(mergedArchive));
+        // Store authoritative archive into local storage
+        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(finalArchive));
+        localStorage.setItem('palnau_workspace_initialized', 'true');
+        localStorage.setItem('palnau_seeds_seeded', 'true');
 
         // 3. Process KfW Loan Data
         if (remoteData.loanData && typeof remoteData.loanData === 'object') {
-            let localLoan = null;
-            try {
-                const rawLoan = localStorage.getItem(LOANS_KEY);
-                if (rawLoan) localLoan = JSON.parse(rawLoan);
-            } catch (e) {}
-
-            if (!localLoan) {
-                localStorage.setItem(LOANS_KEY, JSON.stringify(remoteData.loanData));
-            } else {
-                const remoteLoanTime = new Date(remoteData.loanData.lastUpdated || 0).getTime();
-                const localLoanTime = new Date(localLoan.lastUpdated || 0).getTime();
-                if (remoteLoanTime >= localLoanTime || !localLoan.entries || localLoan.entries.length === 0) {
-                    localStorage.setItem(LOANS_KEY, JSON.stringify(remoteData.loanData));
-                }
-            }
+            localStorage.setItem(LOANS_KEY, JSON.stringify(remoteData.loanData));
         }
 
         // 4. Process Custom Catalog
         if (Array.isArray(remoteData.customCatalog)) {
-            let localCat = [];
-            try {
-                const rawCat = localStorage.getItem(CATALOG_KEY);
-                if (rawCat) localCat = JSON.parse(rawCat) || [];
-            } catch (e) {}
-
-            const catMap = new Map();
-            remoteData.customCatalog.forEach(item => {
-                if (item && item.id) catMap.set(String(item.id), item);
-            });
-            localCat.forEach(item => {
-                if (item && item.id && !catMap.has(String(item.id))) {
-                    catMap.set(String(item.id), item);
-                }
-            });
-            localStorage.setItem(CATALOG_KEY, JSON.stringify(Array.from(catMap.values())));
+            localStorage.setItem(CATALOG_KEY, JSON.stringify(remoteData.customCatalog));
         }
 
         lastSyncTimestamp = new Date();
         updateSyncStatusUI('synced', 'Geräte synchron');
 
-        // Notify and re-render the app views
+        console.log(`[Palnau Cloud Sync] Lokaler Speicher aktualisiert: ${finalArchive.length} Belege.`);
+
+        // Notify and re-render all app views
         if (window.onPalnauCloudDataUpdated && typeof window.onPalnauCloudDataUpdated === 'function') {
             window.onPalnauCloudDataUpdated({
                 sourceDevice: remoteData.lastUpdatedBy,
-                invoicesCount: mergedArchive.length
+                invoicesCount: finalArchive.length
             });
         }
     } catch (err) {
@@ -332,7 +260,6 @@ export async function forceSyncNow() {
         if (snap.exists()) {
             applyRemoteDataToLocal(snap.data());
         }
-        pushLocalToCloud(true);
         if (window.showToast) {
             window.showToast("Cloud-Speicher über alle Geräte synchronisiert! ☁️");
         }

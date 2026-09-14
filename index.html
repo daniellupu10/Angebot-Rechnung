@@ -243,6 +243,17 @@
             </div>
 
             <div class="neu-header-right">
+                <div class="cloud-sync-status-badge status-connecting" onclick="if(window.PalnauCloudSync) window.PalnauCloudSync.forceSyncNow()" title="Cross-Device Cloud-Speicher (Firebase). Klicken für manuellen Sync.">
+                    <span class="sync-dot"></span>
+                    <span class="sync-text">Cloud Sync</span>
+                </div>
+                <button type="button" class="neu-btn" onclick="clearAllInvoicesArchive()" title="Alle Belege im Archiv löschen" style="font-size: 0.8rem; padding: 7px 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; cursor: pointer;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    <span>Archiv leeren</span>
+                </button>
                 <button type="button" class="neu-btn neu-btn-primary" onclick="createNewInvoiceInGenerator()" title="Neue Rechnung anlegen">
                     <span>Neuer Beleg</span>
                 </button>
