@@ -1,6 +1,6 @@
 {
   "name": "Rechnungs- & Angebots-Studio",
-  "description": "Erstellung und Verwaltung von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit Angebots-Übersicht, Transfer zu Rechnungen und DIN A4 PDF-Export.",
+  "description": "Erstellung und Verwaltung von Angeboten und Rechnungen für den Garten- und Landschaftsbau mit DIN 5008 Brief-Fenster-Format, Positions-Editor und 7-Tage-Zahlungsziel.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -322,6 +322,11 @@
                 </div>
             </div>
 
+            <!-- Fälligkeits-Zentrale / Mahnwesen-Benachrichtigungen (Automatisch nach 7 Tagen & nach 14 Tagen) -->
+            <div id="overview-dunning-alerts" class="overview-dunning-alerts-container" style="display: none; margin-bottom: 16px;">
+                <!-- Populated dynamically by renderOverviewInvoices() -->
+            </div>
+
             <!-- Filter & Sorting Command Center -->
             <div class="neu-controls-bar">
                 <!-- Period Grouping Selector -->
@@ -365,6 +370,28 @@
                             oninput="handleOverviewSearch(this.value)"
                         >
                         <button type="button" id="overview-search-clear" onclick="clearOverviewSearch()" title="Suche löschen" style="display: none; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 2px 8px; line-height: 1;">✕</button>
+                    </div>
+                </div>
+
+                <!-- Status Filter Segment: Offen, Bezahlt, Zahlungserinnerung (>7d), Mahnung (>14d) -->
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; width: 100%; border-top: 1px dashed rgba(0,0,0,0.08); padding-top: 10px;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">Zahlungsstatus:</span>
+                    <div class="neu-filter-segmented" id="overview-status-filter-group">
+                        <button type="button" class="neu-filter-pill active" id="pill-status-all" onclick="setOverviewStatusFilter('all')">
+                            Alle (<span id="status-count-all">0</span>)
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-status-offen" onclick="setOverviewStatusFilter('offen')" style="font-weight: 700;">
+                            🔵 Offen (<span id="status-count-offen">0</span>)
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-status-erinnerung" onclick="setOverviewStatusFilter('erinnerung')" style="color: #b45309; font-weight: 700;">
+                            ⚠️ Erinnerung (>7d) (<span id="status-count-erinnerung">0</span>)
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-status-mahnung" onclick="setOverviewStatusFilter('mahnung')" style="color: #b91c1c; font-weight: 800;">
+                            🚨 Mahnung (>14d) (<span id="status-count-mahnung">0</span>)
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-status-bezahlt" onclick="setOverviewStatusFilter('bezahlt')" style="color: #047857; font-weight: 700;">
+                            ✓ Bezahlt (<span id="status-count-bezahlt">0</span>)
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1206,7 +1233,31 @@
                 </div>
             </div>
 
-            <!-- 2. Formular-Aktionen -->
+            <!-- 2. Kundentyp & Ausführungsort -->
+            <div class="neu-card">
+                <div class="neu-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="neu-card-title">Kundentyp</span>
+                    <span id="client-type-indicator-badge" style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #ecfdf5; color: #047857;">
+                        Privatperson
+                    </span>
+                </div>
+                <div class="client-type-btn-group" id="client-type-toggle-group" style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button type="button" id="btn-client-type-privat" class="client-type-btn active" onclick="setClientType('privat')" style="flex: 1; padding: 6px 4px; font-size: 11px; text-align: center;">
+                        👤 Privat
+                    </button>
+                    <button type="button" id="btn-client-type-firma" class="client-type-btn" onclick="setClientType('firma')" style="flex: 1; padding: 6px 4px; font-size: 11px; text-align: center;">
+                        🏢 Firma / B2B
+                    </button>
+                </div>
+                <div id="firma-work-location-field" style="display: none; margin-top: 8px;">
+                    <label for="doc-work-location" style="display: block; font-size: 11px; font-weight: 700; color: #0369a1; margin-bottom: 3px;">
+                        📍 Einsatzort / Ausführungsort:
+                    </label>
+                    <input type="text" id="doc-work-location" class="neu-input" style="font-size: 12px; padding: 6px 8px; width: 100%; box-sizing: border-box;" placeholder="z. B. Baustelle Siemensstraße 12..." oninput="handleWorkLocationChange(this.value)">
+                </div>
+            </div>
+
+            <!-- 3. Formular-Aktionen -->
             <div class="neu-card">
                 <div class="neu-card-header">
                     <span class="neu-card-title">Formular-Werkzeuge</span>
@@ -1228,7 +1279,7 @@
                 </div>
             </div>
 
-            <!-- 3. Smart Recommendations -->
+            <!-- 4. Smart Recommendations -->
             <div class="neu-card" id="smart-recommendations-card">
                 <div class="neu-card-header">
                     <span class="neu-card-title">Empfohlene Ergänzungen</span>
@@ -1257,11 +1308,17 @@
                     </div>
                 </div>
 
-                <!-- Client Address with Underlined Sender Line -->
+                <!-- Client Address Section - Clean Letterhead exactly as in Image 3 -->
                 <div class="client-address-section">
                     <div class="sender-return-line">
                         Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen
                     </div>
+
+                    <!-- Ausführungsort / Einsatzort (eingeblendet für Firmenkunden direkt über dem Namen) -->
+                    <div id="doc-work-location-row" style="display: none; margin-bottom: 6px;">
+                        <input type="text" id="doc-work-location" class="inline-doc-input" style="color: #0369a1; font-weight: 600; border-color: #bae6fd; background: #f0f9ff;" placeholder="📍 Ausführungsort / Einsatzort (z. B. Baustelle Siemensstraße 12)">
+                    </div>
+
                     <div>
                         <input type="text" id="doc-client-name" class="inline-doc-input client-name-input" placeholder="Kundenname / Firma eingeben (z. B. Familie Weber)">
                     </div>
@@ -1277,19 +1334,23 @@
                 <div class="doc-meta-section">
                     <div class="meta-row">
                         <strong id="doc-number-label">Rechnung Nr.:</strong>
-                        <input type="text" id="doc-meta-number" class="inline-meta-input" style="width: 140px; font-weight: bold;">
+                        <input type="text" id="doc-meta-number" class="inline-meta-input" style="width: 145px; font-weight: 700;">
                     </div>
                     <div class="meta-row">
                         <strong>Datum:</strong>
-                        <input type="text" id="doc-meta-date" class="inline-meta-input" style="width: 100px;">
+                        <div style="display: inline-flex; align-items: center; gap: 4px;">
+                            <input type="text" id="doc-meta-date" class="inline-meta-input" style="width: 110px; font-weight: 700; text-align: center;" placeholder="TT.MM.JJJJ" title="Datum im Format TT.MM.JJJJ (frei editierbar)" onchange="handleDocDateChange(this.value)">
+                            <input type="date" id="doc-meta-date-picker" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;" onchange="syncMetaDatePicker(this.value)">
+                            <button type="button" class="neu-btn" onclick="openMetaDatePicker()" style="padding: 2px 6px; font-size: 13px; border-radius: 4px;" title="Kalender zur Datumsauswahl öffnen">📅</button>
+                        </div>
                     </div>
                     <div class="meta-row">
                         <strong id="doc-period-label">Leistungszeitraum:</strong>
-                        <input type="text" id="doc-meta-period" class="inline-meta-input" style="width: 140px;" placeholder="z. B. März 2026">
+                        <input type="text" id="doc-meta-period" class="inline-meta-input" style="width: 145px; font-weight: 700;" placeholder="z. B. September 2026">
                     </div>
-                    <div class="meta-row" style="font-size: 11px; color: #666;">
-                        <span>MwSt-Satz:</span>
-                        <select id="doc-meta-taxrate" class="item-select-field" style="font-size: 11px;">
+                    <div class="meta-row" style="font-size: 13px; color: #475569;">
+                        <span style="font-weight: 700;">MwSt-Satz:</span>
+                        <select id="doc-meta-taxrate" class="item-select-field" style="font-size: 13px; font-weight: 700; width: 110px;">
                             <option value="19">19% MwSt</option>
                             <option value="7">7% MwSt</option>
                             <option value="0">0% Steuerfrei (§19)</option>
@@ -1300,38 +1361,40 @@
                 <!-- H1 Document Heading -->
                 <h1 id="doc-main-title" class="doc-title-heading">RECHNUNG</h1>
 
-                <!-- Positions Bulk Action & Select All Bar -->
-                <div class="doc-table-action-bar" id="doc-items-bulk-bar" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="table-select-all-chk" style="width: 15px; height: 15px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllDocItems(this.checked)">
+                <!-- Positions Bulk Action & Select All Bar (Directly below Heading, exactly as in Image 3) -->
+                <div class="doc-table-action-bar" id="doc-items-bulk-bar">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label class="doc-select-all-label">
+                            <input type="checkbox" id="table-select-all-chk" style="width: 15px; height: 15px; cursor: pointer; accent-color: #0284c7;" onchange="toggleSelectAllDocItems(this.checked)">
                             <span id="table-select-all-label-text">Alle auswählen</span>
                         </label>
                         <span id="doc-items-selected-badge" style="font-size: 11px; color: #0284c7; font-weight: 600; display: none;">0 gewählt</span>
                     </div>
                     <div id="doc-items-bulk-buttons" style="display: none; align-items: center; gap: 6px;">
-                        <button type="button" class="neu-btn" onclick="duplicateSelectedDocItems()" style="font-size: 11px; padding: 4px 10px; border-radius: 6px;" title="Ausgewählte Positionen duplizieren">
+                        <button type="button" class="neu-btn" onclick="duplicateSelectedDocItems()" style="font-size: 11px; padding: 3px 8px; border-radius: 4px;" title="Ausgewählte Positionen duplizieren">
                             Auswahl duplizieren
                         </button>
-                        <button type="button" class="neu-btn" onclick="deleteSelectedDocItems()" style="font-size: 11px; padding: 4px 10px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 6px; font-weight: 600;" title="Ausgewählte Positionen löschen">
+                        <button type="button" class="neu-btn" onclick="deleteSelectedDocItems()" style="font-size: 11px; padding: 3px 8px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 4px; font-weight: 600;" title="Ausgewählte Positionen löschen">
                             Auswahl löschen
                         </button>
                     </div>
                 </div>
 
                 <!-- Items Table in Responsive Table Wrapper -->
-                <div class="doc-table-wrapper">
-                    <table class="doc-items-table">
+                <div class="doc-table-wrapper" id="doc-table-wrapper-container">
+                    <table class="doc-items-table" id="doc-items-interactive-table">
                         <thead>
                             <tr>
-                                <th style="width: 34px; text-align: center;"><input type="checkbox" id="header-col-select-all" style="width: 14px; height: 14px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllDocItems(this.checked)" title="Alle Positionen auswählen"></th>
-                                <th style="width: 32px; text-align: center;">Pos.</th>
-                                <th>Beschreibung</th>
-                                <th style="width: 70px; text-align: right;">Menge</th>
-                                <th style="width: 60px; text-align: center;">Einheit</th>
-                                <th style="width: 90px; text-align: right;">Einzelpreis</th>
-                                <th style="width: 95px; text-align: right;">Gesamt</th>
-                                <th style="width: 30px;"></th>
+                                <th style="width: 32px; text-align: center;">
+                                    <input type="checkbox" id="header-col-select-all" style="width: 15px; height: 15px; cursor: pointer; accent-color: #0284c7;" onchange="toggleSelectAllDocItems(this.checked)" title="Alle Positionen auswählen">
+                                </th>
+                                <th style="width: 38px; text-align: center;">POS.</th>
+                                <th style="text-align: left; padding-left: 6px;">BESCHREIBUNG</th>
+                                <th style="width: 76px; text-align: center;">MENGE</th>
+                                <th style="width: 82px; text-align: center;">EINHEIT</th>
+                                <th style="width: 95px; text-align: right;">EINZELPREIS</th>
+                                <th style="width: 100px; text-align: right;">GESAMT</th>
+                                <th style="width: 38px; text-align: center;"></th>
                             </tr>
                         </thead>
                         <tbody id="doc-table-body">
@@ -1340,12 +1403,12 @@
                     </table>
                 </div>
 
-                <!-- Add Row / Quick Open Catalog Buttons (Clean Desktop Look) -->
-                <div class="add-table-row-container">
-                    <button class="btn-add-table-item btn-add-from-catalog" id="btn-table-open-catalog">
+                <!-- Add Item Buttons directly UNDER Table - EXACTLY MATCHING IMAGE 3 -->
+                <div class="add-table-row-container" id="doc-add-items-row-container">
+                    <button type="button" class="btn-add-table-item btn-add-from-catalog" onclick="openCatalogModal()" title="Leistungskatalog öffnen">
                         Leistung aus Katalog wählen (20+)
                     </button>
-                    <button class="btn-add-table-item btn-add-custom-pos" id="btn-table-add-custom">
+                    <button type="button" class="btn-add-table-item btn-add-custom-pos" id="btn-table-add-custom" title="Freie Position anlegen">
                         Freie Position anlegen
                     </button>
                 </div>
@@ -1370,31 +1433,45 @@
                 <div class="doc-notes-container">
                     <div class="notes-preset-cluster">
                         <span class="preset-label">Textbausteine:</span>
-                        <button type="button" class="preset-chip" onclick="setNotesPreset('14tage')">14 Tage Zahlungsziel</button>
+                        <button type="button" class="preset-chip" onclick="setNotesPreset('7tage')">7 Tage Zahlungsziel</button>
                         <button type="button" class="preset-chip" onclick="setNotesPreset('30tage')">30 Tage (Angebot)</button>
-                        <button type="button" class="preset-chip" onclick="setNotesPreset('skonto')">2% Skonto</button>
+                        <button type="button" class="preset-chip" onclick="setNotesPreset('skonto')">2% Skonto (7 Tage)</button>
                         <button type="button" class="preset-chip" onclick="setNotesPreset('bar')">Bar bei Abnahme</button>
                     </div>
                     <textarea id="doc-notes-input" class="doc-notes-textarea" rows="2" placeholder="Zahlungsbedingungen oder Gültigkeitshinweise eingeben..."></textarea>
                 </div>
 
-                <!-- Footer (3 Columns with Fixed Bank & Contact Data) -->
-                <div class="doc-footer-container">
+                <!-- Gesetzlicher Aufbewahrungshinweis nach § 14 Abs. 4 Satz 1 Nr. 9 UStG (für Privatpersonen bei Rechnungen) -->
+                <div id="doc-retention-notice" class="retention-notice-box" style="display: none;">
+                    <div style="font-weight: 800; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;">
+                        <span>⚖️</span> <span>Gesetzliche Aufbewahrungspflicht für Privatpersonen:</span>
+                    </div>
+                    <div>
+                        Der Gesetzgeber verpflichtet, wenn der Auftraggeber eine Privatperson ist, diesen laut § 14 Abs. 4 Nr. 9 i. V. m. § 14b Abs. 1 UStG darauf hinzuweisen, Rechnungen mindestens 2 Jahre aufzubewahren.
+                    </div>
+                </div>
+
+                <!-- Footer (Subtle, balanced, matching font, style and size on bottom of each page) -->
+                <div class="doc-footer-container" title="Feststehender Geschäftsbrief-Footer (nicht editierbar)">
                     <div class="footer-cols-grid">
-                        <div class="col">
-                            <strong>Bankverbindung:</strong><br>
-                            Sparkasse Pforzheim Calw<br>
-                            IBAN: DE66 6665 0085 0005 9928 34<br>
-                            BIC: PFORDE66XXX
+                        <div class="col footer-bank-col">
+                            <strong class="footer-col-heading">Bankverbindung</strong>
+                            <div class="footer-item-row">Sparkasse Pforzheim Calw</div>
+                            <div class="footer-item-row">IBAN: DE66 6665 0085 0005 9928 34</div>
+                            <div class="footer-item-row">BIC: PFORDE66XXX</div>
+                            <div class="footer-item-row">Verwendungszweck: <span id="footer-bank-doc-number" class="footer-doc-ref">RE-2026-XXXX</span></div>
                         </div>
                         <div class="col">
-                            <strong>Steuerdaten:</strong><br>
-                            Steuernummer: 41413-45017
+                            <strong class="footer-col-heading">Steuerdaten</strong>
+                            <div class="footer-item-row">Steuernummer: 41413-45017</div>
+                            <div class="footer-item-row">USt-IdNr.: Gemäß § 19 / § 14 UStG</div>
+                            <div class="footer-item-row">Finanzamt Mühlacker</div>
                         </div>
                         <div class="col">
-                            <strong>Geschäftsführer:</strong><br>
-                            Andrei Priala<br>
-                            Tel: 07231 466641 | gartenbauu@gmail.com
+                            <strong class="footer-col-heading">Geschäftsführer & Kontakt</strong>
+                            <div class="footer-item-row">Andrei Priala</div>
+                            <div class="footer-item-row">Tel: 07231 466641 | Mobil: 0176 12345678</div>
+                            <div class="footer-item-row">Email: gartenbauu@gmail.com</div>
                         </div>
                     </div>
                 </div>
@@ -1411,6 +1488,13 @@
          ==================================================================== -->
     <div id="clean-pdf-document">
         <!-- Rendered dynamically before PDF export or print -->
+    </div>
+
+    <!-- ====================================================================
+         MAHNSCHREIBEN & ZAHLUNGSERINNERUNG DRUCKCONTAINER (A4 PRINT)
+         ==================================================================== -->
+    <div id="dunning-print-container" style="display: none;">
+        <!-- Rendered dynamically for direct A4 print of dunning letters -->
     </div>
 
     <!-- ====================================================================
@@ -1662,26 +1746,30 @@
                         </div>
                     </div>
 
-                    <!-- Date Selection (Critical User Requirement) -->
+                    <!-- Date Selection (Critical User Requirement: Freely editable DD.MM.YYYY) -->
                     <div class="neu-form-group">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
-                            <label for="convert-invoice-date" style="font-size: 0.85rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px;">
-                                <span>Rechnungsdatum (Erforderlich)</span>
+                            <label for="convert-invoice-date" style="font-size: 0.85rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+                                <span>Rechnungsdatum (Tag.Monat.Jahr)</span>
                                 <span style="color: #dc2626; font-size: 0.9rem;">*</span>
                             </label>
-                            <span id="convert-date-german-display" style="font-size: 0.8rem; font-weight: 600; color: #0284c7;">14.09.2026</span>
+                            <span id="convert-date-german-display" style="font-size: 0.82rem; font-weight: 700; color: #0284c7;">18.09.2026</span>
                         </div>
-                        <input type="date" id="convert-invoice-date" class="neu-input" required style="width: 100%; box-sizing: border-box; padding: 9px 12px; font-weight: 600;" onchange="updateConvertDateDisplay(this.value)">
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <input type="text" id="convert-invoice-date" class="neu-input" required placeholder="TT.MM.JJJJ" style="flex: 1; box-sizing: border-box; padding: 10px 12px; font-weight: 700; font-size: 15px;" oninput="updateConvertDateDisplay(this.value)">
+                            <input type="date" id="convert-native-date-picker" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;" onchange="syncNativeDateToConvertInput(this.value)">
+                            <button type="button" class="neu-btn" onclick="openConvertNativeDatePicker()" style="padding: 9px 12px; font-size: 16px; border-radius: 8px;" title="Kalender öffnen">📅</button>
+                        </div>
                         
                         <!-- Quick Date Presets -->
                         <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
-                            <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('today')">Heute (${new Date().toLocaleDateString('de-DE')})</button>
+                            <button type="button" class="convert-date-quick-btn" id="btn-preset-today" onclick="setConvertDatePreset('today')">Heute</button>
                             <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('tomorrow')">Morgen</button>
                             <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('firstOfMonth')">1. d. Monats</button>
                             <button type="button" class="convert-date-quick-btn" onclick="setConvertDatePreset('sameAsQuote')">Angebotsdatum</button>
                         </div>
-                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 5px;">
-                            Die Rechnung wird mit diesem neuen Datum in der Rechnungs-Übersicht angelegt.
+                        <div style="font-size: 0.78rem; color: #64748b; margin-top: 5px;">
+                            Format: <strong>TT.MM.JJJJ</strong> (z. B. 18.09.2026). Sie können das Datum frei im Feld tippen oder über 📅 auswählen.
                         </div>
                     </div>
 
@@ -1737,6 +1825,134 @@
     </div>
 
     <!-- ====================================================================
+         MAHNWESEN & ZAHLUNGSERINNERUNGEN MODAL (DIN A4 BRIEF-GENERATOR)
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="dunning-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeDunningModal()">
+        <div class="dunning-modal-window">
+            <div class="dunning-modal-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; background: #fee2e2; color: #dc2626; font-size: 20px;">
+                        ⚠️
+                    </span>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;" id="dunning-modal-title">
+                            Mahnwesen & Zahlungserinnerung
+                        </h2>
+                        <div style="margin: 0; font-size: 0.8rem; color: #64748b;">
+                            Rechtssicheres Mahnschreiben für überfällige Rechnungen • Druckfertig & E-Mail-Export
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="neu-btn" onclick="closeDunningModal()" style="padding: 6px 12px; font-size: 0.9rem;" title="Schließen">✕</button>
+            </div>
+
+            <!-- Two-column Body: Left Configuration, Right A4 Document Preview -->
+            <div class="dunning-modal-body">
+                <!-- Left Sidebar: Settings & Controls -->
+                <div class="dunning-config-panel">
+                    <!-- Invoice Summary Card -->
+                    <div class="dunning-invoice-summary-card">
+                        <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Offener Beleg</div>
+                        <div style="font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-top: 2px;" id="dunning-info-docnum">RE-2026-XXXX</div>
+                        <div style="font-size: 0.88rem; font-weight: 700; color: #0284c7; margin-top: 2px;" id="dunning-info-client">Kundenname</div>
+                        <div style="font-size: 0.8rem; color: #64748b;" id="dunning-info-address">Straße, PLZ Ort</div>
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: baseline;">
+                            <span style="font-size: 0.8rem; color: #475569;">Forderung (Brutto):</span>
+                            <strong style="font-size: 1.05rem; color: #0f172a;" id="dunning-info-original-amount">0,00 €</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: #475569; margin-top: 4px;">
+                            <span>Rechnungsdatum:</span>
+                            <strong id="dunning-info-date">01.01.2026</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-top: 4px;">
+                            <span>Verzugsstatus:</span>
+                            <span id="dunning-info-overdue-days">7 Tage überfällig</span>
+                        </div>
+                    </div>
+
+                    <!-- Mahnstufe Auswählen -->
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; font-weight: 800; color: #1e293b; margin-bottom: 6px;">
+                            Schreibenstyp / Mahnstufe:
+                        </label>
+                        <div class="dunning-stage-options">
+                            <label class="dunning-stage-radio active" id="label-stage-1">
+                                <input type="radio" name="dunning-stage-radio" value="1" onchange="handleDunningStageChange(1)" checked>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: #b45309;">1. Zahlungserinnerung (> 7 Tage)</div>
+                                    <div style="font-size: 0.74rem; color: #64748b;">Freundlicher Hinweis nach 7 Tagen Zahlungsziel • Noch ohne Mahngebühr</div>
+                                </div>
+                            </label>
+                            <label class="dunning-stage-radio" id="label-stage-2">
+                                <input type="radio" name="dunning-stage-radio" value="2" onchange="handleDunningStageChange(2)">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: #ea580c;">2. 1. Mahnung (> 14 Tage)</div>
+                                    <div style="font-size: 0.74rem; color: #64748b;">Nach weiteren 7 Tagen ohne Geldeingang • Mit Mahngebühr & Frist</div>
+                                </div>
+                            </label>
+                            <label class="dunning-stage-radio" id="label-stage-3">
+                                <input type="radio" name="dunning-stage-radio" value="3" onchange="handleDunningStageChange(3)">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.85rem; color: #dc2626;">3. Letzte Mahnung vor Rechtsweg</div>
+                                    <div style="font-size: 0.74rem; color: #64748b;">Letzte Frist vor Einleitung gerichtlicher Schritte / Inkasso</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Parameter: Mahngebühr & Neue Frist -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label for="dunning-fee-input" style="display: block; font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                                Mahngebühr (€):
+                            </label>
+                            <input type="number" step="0.50" min="0" id="dunning-fee-input" class="neu-inset-input" style="width: 100%; box-sizing: border-box; padding: 6px 10px; font-weight: 700;" value="0.00" oninput="handleDunningFeeChange(this.value)">
+                        </div>
+                        <div>
+                            <label for="dunning-deadline-input" style="display: block; font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                                Zahlungsfrist bis:
+                            </label>
+                            <input type="text" id="dunning-deadline-input" class="neu-inset-input" style="width: 100%; box-sizing: border-box; padding: 6px 10px; font-weight: 700;" placeholder="TT.MM.JJJJ" oninput="handleDunningDeadlineChange(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- Fixed bank info preview -->
+                    <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 10px 12px; font-size: 0.78rem; color: #166534;">
+                        <strong>Feststehende Bankverbindung im Schreiben:</strong><br>
+                        Sparkasse Pforzheim Calw<br>
+                        IBAN: <strong style="font-family: monospace; font-size: 0.84rem; color: #0f172a;">DE66 6665 0085 0005 9928 34</strong><br>
+                        BIC: PFORDE66XXX • Vwz: <span id="dunning-bank-vwz">RE-2026-XXXX</span>
+                    </div>
+
+                    <!-- Actions -->
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
+                        <button type="button" class="neu-btn neu-btn-primary" onclick="printDunningLetter()" style="justify-content: center; padding: 10px 14px; font-weight: 700; font-size: 0.92rem; background: #059669; color: #fff;">
+                            🖨️ Mahnschreiben direkt drucken (A4 Post)
+                        </button>
+                        <button type="button" class="neu-btn" onclick="downloadDunningLetterHtml()" style="justify-content: center; padding: 8px 14px; font-weight: 600;">
+                            📥 Als PDF / Belegdatei herunterladen
+                        </button>
+                        <button type="button" class="neu-btn" onclick="copyDunningEmailText()" style="justify-content: center; padding: 8px 14px; font-weight: 600;">
+                            ✉️ Text für Kunden-E-Mail kopieren
+                        </button>
+                        <button type="button" class="neu-btn" onclick="markInvoiceAsPaidFromDunning()" style="justify-content: center; padding: 7px 12px; font-size: 0.82rem; background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-weight: 700;">
+                            ✓ Als jetzt bezahlt markieren
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right Pane: Live Printable DIN A4 Letter Preview -->
+                <div class="dunning-preview-panel">
+                    <div class="dunning-a4-sheet" id="dunning-letter-preview">
+                        <!-- Dynamic rendered letterhead -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
          UNIVERSAL IN-APP CONFIRMATION MODAL (100% IFRAME COMPATIBLE)
          ==================================================================== -->
     <div class="catalog-modal-backdrop" id="app-confirm-modal" style="display: none; z-index: 10050;" onclick="if(event.target===this) closeAppConfirm()">
@@ -1775,7 +1991,7 @@
                 <button type="button" class="neu-btn" id="confirm-modal-cancel-btn" onclick="closeAppConfirm()" style="padding: 8px 18px; font-weight: 600; font-size: 0.9rem;">
                     Abbrechen
                 </button>
-                <button type="button" class="neu-btn neu-btn-danger" id="confirm-modal-ok-btn" style="padding: 8px 20px; font-weight: 700; font-size: 0.9rem; background: #dc2626; color: #ffffff; border-color: #b91c1c;">
+                <button type="button" class="neu-btn neu-btn-danger" id="confirm-modal-ok-btn" onclick="executeAppConfirmOk(event)" style="padding: 8px 20px; font-weight: 700; font-size: 0.9rem; background: #dc2626; color: #ffffff; border-color: #b91c1c;">
                     Unwiderruflich löschen
                 </button>
             </div>

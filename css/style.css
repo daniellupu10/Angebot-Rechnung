@@ -428,34 +428,67 @@ body {
 .doc-header-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 45px;
+    margin-bottom: 35px;
 }
 
 .fixed-company-brand {
-    font-size: 10px;
-    color: #777777;
-    line-height: 1.45;
+    font-size: 13.5px;
+    color: #475569;
+    line-height: 1.5;
 }
 
 .fixed-company-brand strong {
-    font-size: 13px;
-    color: #1e293b;
+    font-size: 16px;
+    color: #0f172a;
     display: block;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+    font-weight: 800;
 }
 
-/* Address Box */
+/* Address Box - DIN 5008 Window Envelope standard (Brief mit transparentem Sichtfenster) */
 .client-address-section {
-    margin-bottom: 35px;
-    font-size: 13px;
+    margin-top: 24px;
+    margin-bottom: 20px;
+    min-height: 38mm;
+    max-width: 380px;
+    font-size: 11.5px;
     line-height: 1.4;
 }
 
 .sender-return-line {
-    font-size: 9px;
+    font-size: 9.5px;
     text-decoration: underline;
-    margin-bottom: 6px;
-    color: #777777;
+    margin-bottom: 8px;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+/* Client Type Switcher */
+.client-type-btn-group {
+    display: inline-flex;
+    background: #e2e8f0;
+    padding: 2px;
+    border-radius: 6px;
+    gap: 2px;
+}
+
+.client-type-btn {
+    border: none;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    color: #64748b;
+}
+
+.client-type-btn.active {
+    background: #ffffff;
+    color: #059669;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
 /* Interactive Input Controls within Document */
@@ -465,8 +498,9 @@ body {
     border-radius: 4px;
     padding: 3px 6px;
     font-family: inherit;
-    font-size: inherit;
-    color: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #1e293b;
     background: transparent;
     transition: all 0.15s ease;
     margin: 1px 0;
@@ -485,8 +519,9 @@ body {
 }
 
 .inline-doc-input.client-name-input {
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: 800;
+    font-size: 12.5px;
+    color: #0f172a;
 }
 
 /* Right-Aligned Meta Details */
@@ -494,29 +529,32 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    margin-bottom: 25px;
-    font-size: 12px;
-    line-height: 1.5;
+    margin-bottom: 10px;
+    font-size: 11px;
+    line-height: 1.4;
 }
 
 .meta-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 3px;
+    gap: 5px;
+    margin-bottom: 2px;
 }
 
 .meta-row strong {
-    color: #333333;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .inline-meta-input {
     border: 1px dashed transparent;
     border-radius: 4px;
     padding: 2px 4px;
-    font-size: 12px;
+    font-size: 11.5px;
+    font-weight: 700;
     font-family: inherit;
-    color: #333333;
+    color: #0f172a;
     text-align: right;
     background: transparent;
 }
@@ -535,51 +573,104 @@ body {
 
 /* H1 Document Heading */
 .doc-title-heading {
-    font-size: 22px;
-    margin-bottom: 22px;
+    font-size: 18px;
+    margin-bottom: 10px;
     border-bottom: 2px solid #10b981;
-    padding-bottom: 8px;
+    padding-bottom: 4px;
     color: #059669;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-weight: 800;
+    font-weight: 900;
 }
 
-/* Document Table Wrapper (Clean Desktop Table with Scroll Protection) */
-.doc-table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin-bottom: 16px;
+/* Document Positions Section Header */
+.doc-positions-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    margin-bottom: 8px;
+    padding: 4px 0;
+}
+
+.doc-positions-count-badge {
+    background: #e2e8f0;
+    color: #1e293b;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.doc-positions-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Document Table Action Bar (Alle auswählen) */
+.doc-table-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding: 4px 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
 }
 
-/* Table */
+.doc-select-all-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Document Table Wrapper (No scroll view - fully expanded within document) */
+.doc-table-wrapper {
+    width: 100%;
+    overflow: visible;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+/* Table - Clean, elegant layout with visible editable fields */
 .doc-items-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 640px;
-    table-layout: fixed;
+    table-layout: auto;
+}
+
+.doc-items-table thead tr {
+    background-color: #f8fafc;
+    border-bottom: 1.5px solid #cbd5e1;
 }
 
 .doc-items-table th {
-    background-color: #f8fafc;
-    text-align: left;
-    padding: 10px 8px;
-    border-bottom: 2px solid #e2e8f0;
-    font-size: 11px;
-    font-weight: 700;
-    color: #475569;
+    padding: 9px 8px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #334155;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    vertical-align: middle;
+    border: none;
 }
 
 .doc-items-table td {
-    padding: 8px 6px;
+    padding: 7px 6px;
     border-bottom: 1px solid #f1f5f9;
-    font-size: 12px;
     vertical-align: top;
-    position: relative;
 }
 
 .table-row-item {
@@ -590,179 +681,279 @@ body {
     background-color: #f8fafc;
 }
 
-.row-action-delete {
-    opacity: 0.75;
-    border: 1px solid #fca5a5;
-    background: #fee2e2;
-    color: #dc2626;
-    border-radius: 6px;
-    width: 26px;
-    height: 26px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: bold;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s ease;
+.table-row-item:hover .item-title-field,
+.table-row-item:hover .item-number-field,
+.table-row-item:hover .item-select-field {
+    border-color: #94a3b8;
 }
 
-.table-row-item:hover .row-action-delete,
-.row-action-delete:hover,
-.row-action-delete:focus {
-    opacity: 1;
-    background: #dc2626;
-    color: #ffffff;
-    border-color: #b91c1c;
-    transform: scale(1.08);
+/* Clear, tactile, visible inputs inside each position row */
+.item-desc-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 5px;
 }
 
-/* Inline Inputs inside Table */
 .item-title-field {
     width: 100%;
-    font-weight: 700;
-    font-size: 13px;
-    color: #0f172a;
-    border: 1px dashed transparent;
-    padding: 3px 6px;
-    border-radius: 4px;
-    background: transparent;
     font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    padding: 7px 10px;
+    border-radius: 6px;
+    box-sizing: border-box;
+    min-height: 38px;
     transition: all 0.15s ease;
+}
+
+.item-title-field:hover {
+    border-color: #94a3b8;
+}
+
+.item-title-field:focus {
+    outline: none;
+    border-color: #059669;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
 }
 
 .item-desc-field {
     width: 100%;
-    font-size: 11px;
-    color: #64748b;
-    border: 1px dashed transparent;
-    padding: 3px 6px;
-    border-radius: 4px;
-    background: transparent;
-    resize: none;
     font-family: inherit;
-    line-height: 1.4;
+    font-size: 13px;
+    font-weight: 400;
+    color: #334155;
+    border: 1.5px solid #cbd5e1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #f8fafc;
+    resize: vertical;
+    line-height: 1.45;
+    min-height: 52px;
+    box-sizing: border-box;
     transition: all 0.15s ease;
-    min-height: 22px;
+}
+
+.item-desc-field:hover {
+    border-color: #94a3b8;
+    background: #ffffff;
+}
+
+.item-desc-field:focus {
+    outline: none;
+    border-color: #059669;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
 }
 
 .item-number-field {
     width: 100%;
-    text-align: right;
-    border: 1px dashed transparent;
-    padding: 3px 6px;
-    border-radius: 4px;
-    background: transparent;
     font-family: inherit;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: #1e293b;
+    font-size: 14px;
+    color: #0f172a;
+    border: 1.5px solid #cbd5e1;
+    padding: 7px 8px;
+    border-radius: 6px;
+    background: #ffffff;
+    box-sizing: border-box;
+    min-height: 38px;
     transition: all 0.15s ease;
+}
+
+.item-qty-field {
+    font-weight: 700;
+    text-align: center;
+}
+
+.item-price-field {
+    font-weight: 600;
+    text-align: right;
+}
+
+.price-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.price-input-wrapper .currency-symbol {
+    position: absolute;
+    right: 8px;
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+.price-input-wrapper .item-price-field {
+    padding-right: 22px;
+}
+
+.item-number-field:hover {
+    border-color: #94a3b8;
+}
+
+.item-number-field:focus {
+    outline: none;
+    border-color: #059669;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
 }
 
 .item-select-field {
-    border: 1px dashed transparent;
-    padding: 3px 4px;
-    border-radius: 4px;
-    background: transparent;
+    width: 100%;
     font-family: inherit;
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 600;
-    color: #334155;
+    color: #0f172a;
     text-align: center;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 7px 4px;
+    background: #ffffff;
+    cursor: pointer;
+    box-sizing: border-box;
+    min-height: 38px;
+    appearance: auto;
+    transition: all 0.15s ease;
+}
+
+.item-select-field:hover {
+    border-color: #94a3b8;
+}
+
+.item-select-field:focus {
+    outline: none;
+    border-color: #059669;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
+}
+
+/* Delete Button (Soft pink/red square with X) */
+.row-action-delete {
+    background: #fef2f2;
+    border: 1px solid #fee2e2;
+    color: #ef4444;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: bold;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
-.item-title-field:hover, .item-desc-field:hover, .item-number-field:hover, .item-select-field:hover {
-    border-color: #cbd5e1;
-    background: #ffffff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+.row-action-delete:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
+    transform: scale(1.04);
 }
 
-.item-title-field:focus, .item-desc-field:focus, .item-number-field:focus, .item-select-field:focus {
-    outline: none;
-    border-color: #10b981;
-    background: #ffffff;
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-}
-
-/* Add Item Buttons inside Table */
+/* Add Item Buttons directly UNDER the table (matching Image 3) */
 .add-table-row-container {
-    margin-bottom: 24px;
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
     align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .btn-add-table-item {
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 0.825rem;
+    font-family: inherit;
+    font-size: 13px;
     font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s ease;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+    outline: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .btn-add-from-catalog {
-    background: #fffbeb;
+    background: #fefce8;
+    color: #92400e;
     border: 1.5px dashed #f59e0b;
-    color: #b45309;
 }
 
 .btn-add-from-catalog:hover {
     background: #fef3c7;
     border-color: #d97706;
-    color: #92400e;
+    color: #78350f;
     transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(245, 158, 11, 0.12);
 }
 
 .btn-add-custom-pos {
-    background: #f8fafc;
+    background: #ffffff;
+    color: #334155;
     border: 1.5px dashed #cbd5e1;
-    color: #475569;
 }
 
 .btn-add-custom-pos:hover {
-    background: #f1f5f9;
+    background: #f8fafc;
     border-color: #94a3b8;
     color: #0f172a;
     transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
 }
 
-/* Totals Box */
+/* Totals Box - Natural document flow matching image exactly */
 .doc-totals-container {
-    float: right;
-    width: 280px;
-    margin-bottom: 24px;
+    width: 300px;
+    max-width: 100%;
+    margin-top: 12px;
+    margin-bottom: 16px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    float: none;
+    clear: both;
 }
 
 .totals-entry {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    font-size: 12.5px;
-    color: #475569;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 11.5px;
+    color: #334155;
+    font-weight: 500;
 }
 
 .totals-entry.grand-total {
-    font-weight: 800;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     border-top: 2px solid #0f172a;
-    padding-top: 8px;
-    margin-top: 6px;
-    font-size: 15.5px;
+    padding-top: 6px;
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 800;
     color: #0f172a;
+}
+
+.totals-entry.grand-total span {
+    white-space: nowrap;
 }
 
 /* Notes & Payment Terms */
 .doc-notes-container {
     clear: both;
-    margin-top: 24px;
-    margin-bottom: 36px;
+    margin-top: 16px;
+    margin-bottom: 14px;
 }
 
 .notes-preset-cluster {
@@ -774,27 +965,27 @@ body {
 }
 
 .preset-label {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
     color: #64748b;
-    margin-right: 4px;
+    margin-right: 2px;
 }
 
 .preset-chip {
-    background: #f1f5f9;
+    background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    padding: 3px 8px;
-    font-size: 11px;
-    color: #475569;
-    font-weight: 600;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    padding: 4px 10px;
+    font-size: 10.5px;
+    color: #334155;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .preset-chip:hover {
-    background: #e2e8f0;
-    color: #0f172a;
+    background: #f8fafc;
     border-color: #cbd5e1;
 }
 
@@ -804,9 +995,9 @@ body {
     border-radius: 4px;
     padding: 6px 8px;
     font-family: inherit;
-    font-size: 12px;
-    line-height: 1.5;
-    color: #334155;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #1e293b;
     background: transparent;
     resize: vertical;
     transition: all 0.15s ease;
@@ -824,26 +1015,400 @@ body {
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
-/* Footer */
+/* Statutory Retention Notice Box (for Invoices) */
+.retention-notice-box {
+    margin-top: 10px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    border-left: 4px solid #ca8a04;
+    border-radius: 6px;
+    font-size: 10.5px;
+    line-height: 1.45;
+    color: #713f12;
+}
+
+/* Senior-Friendly High-Contrast Bankverbindung Box (Prominent & Non-Editable) */
+.senior-bank-highlight-box {
+    margin-top: 12px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border: 1.5px solid #94a3b8;
+    border-left: 5px solid #059669;
+    border-radius: 8px;
+    position: relative;
+    user-select: text;
+}
+
+.senior-bank-highlight-box .non-editable-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #475569;
+    background: #e2e8f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.senior-iban-pill {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13.5px;
+    font-weight: 900;
+    color: #000000;
+    letter-spacing: 1px;
+    background: #ffffff;
+    padding: 4px 10px;
+    border: 1.5px solid #0f172a;
+    border-radius: 6px;
+    margin-left: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Footer - Subtle, Business-Grade DIN A4 Company, Tax & Bank Info */
 .doc-footer-container {
     margin-top: auto;
     flex-shrink: 0;
-    font-size: 9px;
-    color: #777777;
-    border-top: 1px solid #dddddd;
-    padding-top: 12px;
+    font-size: 11px;
+    font-family: inherit;
+    color: #475569;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 10px;
+    background: transparent;
+    user-select: text;
+    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
 .footer-cols-grid {
     display: flex;
     justify-content: space-between;
-    line-height: 1.45;
+    line-height: 1.5;
+    gap: 20px;
 }
 
-.footer-cols-grid .col strong {
-    color: #333333;
-    display: inline-block;
-    margin-bottom: 2px;
+.footer-cols-grid .col {
+    flex: 1;
+}
+
+.footer-col-heading {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    display: block;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.footer-item-row {
+    font-size: 11px;
+    font-weight: 400;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.footer-doc-ref {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.footer-bank-col {
+    flex: 1 !important;
+}
+
+/* Status Badges for Invoices */
+.card-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    white-space: nowrap;
+}
+
+.badge-status-paid {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1.5px solid #a7f3d0;
+}
+
+.badge-status-open {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1.5px solid #bfdbfe;
+}
+
+.badge-status-reminder {
+    background: #fffbeb;
+    color: #b45309;
+    border: 1.5px solid #fde68a;
+    animation: pulseReminder 2.5s infinite;
+}
+
+.badge-status-dunning {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1.5px solid #fca5a5;
+    font-weight: 900;
+    animation: pulseDunning 2s infinite;
+}
+
+@keyframes pulseDunning {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15); }
+}
+
+@keyframes pulseReminder {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
+    50% { box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.12); }
+}
+
+/* Dunning Notification Alert Banners in Overview */
+.overview-dunning-alerts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dunning-alert-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-radius: 12px;
+    gap: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    flex-wrap: wrap;
+}
+
+.dunning-alert-card.alert-danger {
+    background: #fef2f2;
+    border: 1.5px solid #f87171;
+    border-left: 6px solid #dc2626;
+}
+
+.dunning-alert-card.alert-warning {
+    background: #fffbeb;
+    border: 1.5px solid #fcd34d;
+    border-left: 6px solid #f59e0b;
+}
+
+.dunning-alert-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    flex-shrink: 0;
+}
+
+.alert-danger .dunning-alert-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.alert-warning .dunning-alert-icon {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.dunning-alert-content {
+    flex: 1;
+    min-width: 260px;
+}
+
+.dunning-alert-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alert-danger .dunning-alert-title { color: #991b1b; }
+.alert-warning .dunning-alert-title { color: #92400e; }
+
+.dunning-alert-desc {
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: #334155;
+}
+
+.dunning-alert-desc strong {
+    color: #0f172a;
+}
+
+.dunning-alert-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Mahnwesen / Dunning Modal Window Styles */
+.dunning-modal-window {
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    width: 95vw;
+    max-width: 1250px;
+    height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+}
+
+.dunning-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-bottom: 1.5px solid #e2e8f0;
+}
+
+.dunning-modal-body {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    flex: 1;
+    overflow: hidden;
+    background: #f1f5f9;
+}
+
+@media (max-width: 992px) {
+    .dunning-modal-body {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+    }
+}
+
+.dunning-config-panel {
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.dunning-invoice-summary-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.dunning-stage-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dunning-stage-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.dunning-stage-radio:hover {
+    border-color: #94a3b8;
+    background: #ffffff;
+}
+
+.dunning-stage-radio.active {
+    border-color: #0284c7;
+    background: #f0f9ff;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+}
+
+.dunning-stage-radio input[type="radio"] {
+    margin-top: 3px;
+    accent-color: #0284c7;
+}
+
+.dunning-preview-panel {
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    background: #64748b;
+}
+
+.dunning-a4-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    background: #ffffff;
+    color: #1e293b;
+    padding: 25mm 20mm;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.6;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Printing styles for Dunning letter */
+@media print {
+    body.printing-dunning * {
+        visibility: hidden !important;
+    }
+    body.printing-dunning #dunning-print-container,
+    body.printing-dunning #dunning-print-container * {
+        visibility: visible !important;
+    }
+    body.printing-dunning #dunning-print-container {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    /* Print styles for Clean PDF Document (Rechnung & Angebot) */
+    body.printing-clean * {
+        visibility: hidden !important;
+    }
+    body.printing-clean #clean-pdf-document,
+    body.printing-clean #clean-pdf-document * {
+        visibility: visible !important;
+    }
+    body.printing-clean #clean-pdf-document {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 20mm 20mm 20mm 20mm !important;
+        background: #ffffff !important;
+    }
 }
 
 /* ==========================================================================
@@ -856,11 +1421,11 @@ body {
     max-width: 210mm;
     min-height: 296mm;
     background: #ffffff;
-    color: #333333;
+    color: #1e293b;
     font-family: Arial, Helvetica, sans-serif;
     font-size: 11pt;
-    line-height: 1.4;
-    padding: 28px 36px 24px 36px;
+    line-height: 1.45;
+    padding: 24mm 20mm 20mm 20mm;
     box-sizing: border-box;
     flex-direction: column;
     justify-content: space-between;
@@ -878,116 +1443,277 @@ body {
 }
 
 .clean-company-info {
-    font-size: 10px;
-    color: #777777;
-    line-height: 1.45;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.clean-company-info strong {
+    font-size: 17px;
+    color: #0f172a;
+    display: block;
+    margin-bottom: 3px;
+}
+
+/* DIN 5008 Falzmarken & Lochmarken für Fensterbriefe */
+#clean-pdf-document {
+    position: relative;
+}
+
+.din-fold-mark {
+    position: absolute;
+    left: 3mm;
+    width: 5mm;
+    height: 1px;
+    background: #cbd5e1;
+    pointer-events: none;
+}
+.din-fold-mark-1 { top: 105mm; }
+.din-punch-mark { top: 148.5mm; width: 8mm; background: #94a3b8; }
+.din-fold-mark-2 { top: 210mm; }
+
+/* DIN 5008 Adresszone für Fensterbriefe (Heruntergezogen auf 45mm ab Blattkante) */
+.clean-address-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-top: 36px;
+    margin-bottom: 24px;
+    gap: 20px;
 }
 
 .clean-client-address {
-    margin-bottom: 20px;
-    font-size: 13px;
-    line-height: 1.4;
+    width: 88mm;
+    min-height: 45mm;
+    font-size: 14.5px;
+    line-height: 1.45;
+    color: #1e293b;
+    box-sizing: border-box;
+}
+
+.clean-client-address strong {
+    font-size: 16px;
+    color: #0f172a;
+    display: block;
+    margin-bottom: 2px;
 }
 
 .clean-return-line {
-    font-size: 9px;
+    font-size: 10px;
     text-decoration: underline;
-    margin-bottom: 6px;
-    color: #777777;
+    margin-bottom: 10px;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0.2px;
 }
 
 .clean-doc-details {
     text-align: right;
-    margin-bottom: 20px;
-    font-size: 12px;
+    margin-bottom: 0;
+    font-size: 14px;
     line-height: 1.5;
+    color: #334155;
+}
+
+.clean-doc-details strong {
+    color: #0f172a;
 }
 
 .clean-h1-title {
-    font-size: 24px;
-    margin-bottom: 16px;
-    border-bottom: 2px solid #4CAF50;
-    padding-bottom: 8px;
-    color: #2e7d32;
+    font-size: 26px;
+    margin-top: 14px;
+    margin-bottom: 18px;
+    border-bottom: 2.5px solid #059669;
+    padding-bottom: 6px;
+    color: #059669;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-weight: bold;
+    font-weight: 900;
 }
 
 .clean-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
 }
 
 .clean-table th {
-    background-color: #f2f2f2;
+    background-color: #f1f5f9;
     text-align: left;
     padding: 9px 8px;
-    border-bottom: 2px solid #dddddd;
-    font-size: 11px;
-    font-weight: bold;
-    color: #333333;
+    border-bottom: 2px solid #cbd5e1;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
 }
 
 .clean-table td {
     padding: 8px 8px;
-    border-bottom: 1px solid #eeeeee;
-    font-size: 11.5px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 14px;
     vertical-align: top;
+    color: #1e293b;
+}
+
+.clean-table td strong {
+    font-size: 14.5px;
+    color: #0f172a;
+}
+
+.clean-table td small {
+    font-size: 12.5px;
+    color: #475569;
+    line-height: 1.4;
+    display: block;
 }
 
 .clean-totals {
     float: right;
-    width: 260px;
-    margin-bottom: 16px;
+    width: 320px;
+    margin-bottom: 20px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
 }
 
 .clean-total-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    font-size: 12px;
+    padding: 5px 0;
+    font-size: 14px;
+    color: #334155;
+    font-weight: 600;
 }
 
 .clean-total-row.grand {
-    font-weight: bold;
-    border-top: 2px solid #333333;
+    font-weight: 800;
+    border-top: 2px solid #0f172a;
     padding-top: 8px;
-    margin-top: 4px;
-    font-size: 15px;
-    color: #111111;
+    margin-top: 6px;
+    font-size: 16px;
+    color: #0f172a;
+}
+
+.clean-total-row.grand span {
+    white-space: nowrap;
 }
 
 .clean-notes {
     clear: both;
-    margin-top: 20px;
-    margin-bottom: 24px;
-    font-size: 11.5px;
+    margin-top: 22px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #334155;
+}
+
+/* Statutory Retention Notice Box in PDF */
+.clean-retention-notice {
+    clear: both;
+    margin-top: 14px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: #fefce8;
+    border: 1.5px solid #fef08a;
+    border-left: 5px solid #ca8a04;
+    border-radius: 6px;
+    font-size: 13px;
     line-height: 1.5;
-    color: #444444;
+    color: #713f12;
+}
+
+/* Senior-Friendly Bank Highlight Box in PDF */
+.clean-senior-bank-box {
+    clear: both;
+    margin-top: 16px;
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 2px solid #cbd5e1;
+    border-left: 6px solid #059669;
+    border-radius: 8px;
+}
+
+.clean-senior-bank-box .bank-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 4px;
+}
+
+.clean-senior-bank-box .bank-iban-line {
+    font-size: 15px;
+    color: #334155;
+}
+
+.clean-senior-bank-box .bank-iban-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 17.5px;
+    font-weight: 900;
+    color: #000000;
+    letter-spacing: 1.4px;
+    background: #ffffff;
+    padding: 3px 8px;
+    border: 1.5px solid #94a3b8;
+    border-radius: 6px;
+    display: inline-block;
+    margin-left: 6px;
 }
 
 .clean-footer {
     margin-top: auto;
     flex-shrink: 0;
-    font-size: 9px;
-    color: #777777;
-    border-top: 1px solid #dddddd;
+    font-size: 11px;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #475569;
+    border-top: 1px solid #cbd5e1;
     padding-top: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.clean-footer-col-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    display: block;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.clean-footer-row {
+    font-size: 11px;
+    font-weight: 400;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.clean-footer-bank-col {
+    flex: 1;
+}
+
+.clean-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.clean-totals,
+.retention-notice-box {
+    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
 .clean-footer-grid {
     display: flex;
     justify-content: space-between;
-    line-height: 1.45;
+    line-height: 1.5;
+    gap: 16px;
 }
 
-.clean-footer-grid .col strong,
-.clean-footer-grid div strong {
-    color: #333333;
-    display: inline-block;
-    margin-bottom: 2px;
+.clean-footer-grid > div {
+    flex: 1;
 }
 
 /* ==========================================================================
@@ -1012,9 +1738,16 @@ body {
     transition: opacity 0.2s ease;
 }
 
-.catalog-modal-backdrop.open {
-    opacity: 1;
-    pointer-events: auto;
+.catalog-modal-backdrop.open,
+#convert-quote-modal.open,
+#convert-quote-modal[style*="display: flex"] {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    display: flex !important;
+}
+
+#convert-quote-modal .catalog-modal-window {
+    max-width: 540px;
 }
 
 .catalog-modal-window {
@@ -1084,11 +1817,14 @@ body {
 }
 
 .modal-cards-scroll-area {
-    padding: 10px 24px 24px 24px;
+    padding: 12px 24px 24px 24px;
     overflow-y: auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+    min-height: 320px;
+    max-height: 65vh;
+    flex: 1 1 auto;
 }
 
 .catalog-card-item {
@@ -1468,7 +2204,10 @@ body {
 @media (max-width: 1024px) {
     .generator-workspace-body {
         flex-direction: column;
-        height: auto;
+        flex: 1;
+        min-height: 0;
+        height: calc(100vh - 58px);
+        overflow: hidden;
     }
 
     .generator-workspace-body .neu-sidebar {
@@ -1478,12 +2217,17 @@ body {
     .neu-canvas {
         padding: 20px 14px 60px 14px;
         width: 100%;
-        height: auto;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .a4-interactive-sheet {
-        padding: 30px 24px !important;
+        padding: 30px 20px !important;
         max-width: 100% !important;
+        width: 100% !important;
         margin-bottom: 24px !important;
     }
 }

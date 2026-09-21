@@ -466,7 +466,7 @@ const SAMPLE_INVOICE_DATA = {
         }
     ],
     taxRate: 19,
-    notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Konto."
+    notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen auf das unten genannte Bankkonto."
 };
 
 const SAMPLE_QUOTE_DATA = {
@@ -684,7 +684,7 @@ const SEED_QUOTES_ARCHIVE = [
                 total: 260.00
             }
         ],
-        notesText: "Pauschalangebot für die Wohnanlage Residenz. Festpreisgarantie bei Zusage innerhalb von 14 Tagen.",
+        notesText: "Pauschalangebot für die Wohnanlage Residenz. Festpreisgarantie bei Zusage innerhalb von 7 Tagen.",
         netTotal: 1468.00,
         taxAmount: 278.92,
         grossTotal: 1746.92,
@@ -805,14 +805,15 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 45.00
             }
         ],
-        notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Konto.",
+        notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf das unten genannte Bankkonto.",
         netTotal: 795.00,
         taxAmount: 151.05,
         grossTotal: 946.05,
         totalNet: 795.00,
         totalTax: 151.05,
         totalGross: 946.05,
-        status: "bezahlt"
+        status: "ausgestellt",
+        paymentStatus: "offen"
     },
     {
         id: "RE-2026-1038",
@@ -857,14 +858,15 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 160.00
             }
         ],
-        notesText: "Zahlbar rein netto innerhalb von 14 Tagen. Vielen Dank für Ihren Auftrag.",
+        notesText: "Zahlbar rein netto innerhalb von 7 Tagen ab Rechnungsdatum auf unser Bankkonto.",
         netTotal: 1320.00,
         taxAmount: 250.80,
         grossTotal: 1570.80,
         totalNet: 1320.00,
         totalTax: 250.80,
         totalGross: 1570.80,
-        status: "bezahlt"
+        status: "ausgestellt",
+        paymentStatus: "offen"
     },
     {
         id: "RE-2026-1025",
@@ -945,7 +947,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 160.00
             }
         ],
-        notesText: "Zahlbar rein netto innerhalb von 14 Tagen. Vielen Dank für Ihren Auftrag.",
+        notesText: "Zahlbar rein netto innerhalb von 7 Tagen. Vielen Dank für Ihren Auftrag.",
         netTotal: 1850.00,
         taxAmount: 351.50,
         grossTotal: 2201.50,
@@ -989,7 +991,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 150.00
             }
         ],
-        notesText: "Zahlbar innerhalb von 14 Tagen rein netto.",
+        notesText: "Zahlbar innerhalb von 7 Tagen rein netto.",
         netTotal: 750.00,
         taxAmount: 142.50,
         grossTotal: 892.50,
@@ -1033,7 +1035,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 350.00
             }
         ],
-        notesText: "Zahlbar innerhalb von 14 Tagen rein netto.",
+        notesText: "Zahlbar innerhalb von 7 Tagen rein netto.",
         netTotal: 1200.00,
         taxAmount: 228.00,
         grossTotal: 1428.00,
@@ -1085,7 +1087,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 55.00
             }
         ],
-        notesText: "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
+        notesText: "Zahlbar innerhalb von 7 Tagen ohne Abzug.",
         netTotal: 488.00,
         taxAmount: 92.72,
         grossTotal: 580.72,
@@ -1137,7 +1139,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 280.00
             }
         ],
-        notesText: "Schlussrechnung gemäß Aufmaß und Bauabnahme. Zahlbar innerhalb von 14 Tagen.",
+        notesText: "Schlussrechnung gemäß Aufmaß und Bauabnahme. Zahlbar innerhalb von 7 Tagen.",
         netTotal: 3920.00,
         taxAmount: 744.80,
         grossTotal: 4664.80,
@@ -1181,7 +1183,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 320.00
             }
         ],
-        notesText: "Betrag fällig innerhalb von 14 Tagen rein netto.",
+        notesText: "Betrag fällig innerhalb von 7 Tagen rein netto.",
         netTotal: 2520.00,
         taxAmount: 478.80,
         grossTotal: 2998.80,
@@ -1225,7 +1227,7 @@ const SEED_INVOICES_ARCHIVE = [
                 total: 624.00
             }
         ],
-        notesText: "Zahlbar rein netto innerhalb von 14 Tagen. Vielen Dank für das Vertrauen.",
+        notesText: "Zahlbar rein netto innerhalb von 7 Tagen. Vielen Dank für das Vertrauen.",
         netTotal: 2474.00,
         taxAmount: 470.06,
         grossTotal: 2944.06,
@@ -1428,7 +1430,7 @@ function generateXRechnungXML(invoice) {
             <udt:DateTimeString format="102">${dateYmd}</udt:DateTimeString>
         </ram:IssueDateTime>
         <ram:IncludedNote>
-            <ram:Content>${escapeXml(invoice.notesText || "Zahlbar innerhalb von 14 Tagen.")}</ram:Content>
+            <ram:Content>${escapeXml(invoice.notesText || "Zahlbar innerhalb von 7 Tagen.")}</ram:Content>
             <ram:SubjectCode>ADU</ram:SubjectCode>
         </ram:IncludedNote>
     </rsm:ExchangedDocument>
@@ -1499,7 +1501,7 @@ function generateXRechnungXML(invoice) {
                 <ram:RateApplicablePercent>${taxRate}</ram:RateApplicablePercent>
             </ram:ApplicableTradeTax>
             <ram:SpecifiedTradePaymentTerms>
-                <ram:Description>${escapeXml(invoice.notesText || "Zahlbar innerhalb von 14 Tagen rein netto.")}</ram:Description>
+                <ram:Description>${escapeXml(invoice.notesText || "Zahlbar innerhalb von 7 Tagen rein netto.")}</ram:Description>
             </ram:SpecifiedTradePaymentTerms>
             <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
                 <ram:LineTotalAmount>${netTotal}</ram:LineTotalAmount>

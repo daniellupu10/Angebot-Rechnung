@@ -12,13 +12,26 @@ let appState = {
     docDate: formatDateForGermanDisplay(new Date()),
     servicePeriod: getCurrentMonthGerman(),
     taxRate: 19,
+    clientType: "privat", // "privat" | "firma"
+    workLocation: "", // Only relevant if clientType === "firma" (Ausführungsort / Einsatzort)
     client: {
         name: "",
         street: "",
-        zipCity: ""
+        zipCity: "",
+        clientType: "privat",
+        workLocation: ""
     },
-    items: [],
-    notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto."
+    items: [
+        {
+            title: "Arbeitsleistung / Material",
+            description: "Detaillierte Leistungsbeschreibung",
+            quantity: 1,
+            unit: "Std",
+            price: 60.00,
+            total: 60.00
+        }
+    ],
+    notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen auf das unten genannte Bankkonto."
 };
 
 let modalActiveCategory = "all";
@@ -107,14 +120,29 @@ window.closeAppConfirm = function() {
     activeConfirmCallback = null;
 };
 
+window.executeAppConfirmOk = function(e) {
+    if (e) {
+        try { e.preventDefault(); } catch (err) {}
+    }
+    const cb = activeConfirmCallback;
+    window.closeAppConfirm();
+    if (typeof cb === 'function') {
+        try {
+            cb();
+        } catch (err) {
+            console.error("Fehler beim Ausführen der Bestätigungs-Aktion:", err);
+        }
+    }
+};
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    checkAuthOnLoad();
-    initApp();
-    setupEventListeners();
-    setupCatalogModal();
-    renderAll();
-    updateAllAppStatesAndBadges();
+    try { checkAuthOnLoad(); } catch (e) { console.warn("checkAuthOnLoad:", e); }
+    try { initApp(); } catch (e) { console.warn("initApp:", e); }
+    try { setupEventListeners(); } catch (e) { console.warn("setupEventListeners:", e); }
+    try { setupCatalogModal(); } catch (e) { console.warn("setupCatalogModal:", e); }
+    try { renderAll(); } catch (e) { console.warn("renderAll:", e); }
+    try { updateAllAppStatesAndBadges(); } catch (e) { console.warn("updateAllAppStatesAndBadges:", e); }
 });
 
 // Universal Cross-Device Cloud Sync Event Listener
@@ -176,6 +204,18 @@ function initApp() {
     if (saved) {
         try {
             appState = JSON.parse(saved);
+            if (!Array.isArray(appState.items) || appState.items.length === 0) {
+                appState.items = [
+                    {
+                        title: "Arbeitsleistung / Material",
+                        description: "Detaillierte Leistungsbeschreibung",
+                        quantity: 1,
+                        unit: "Std",
+                        price: 60.00,
+                        total: 60.00
+                    }
+                ];
+            }
         } catch (e) {
             console.warn("Could not load draft, resetting", e);
             startCleanState();
@@ -185,20 +225,41 @@ function initApp() {
     }
 }
 
-function startCleanState() {
+function startCleanState(emptyAll = false) {
     appState = {
         docType: "rechnung",
         docNumber: generateDocNumber("rechnung"),
         docDate: formatDateForGermanDisplay(new Date()),
         servicePeriod: getCurrentMonthGerman(),
         taxRate: 19,
+        clientType: "privat",
+        workLocation: "",
         client: {
             name: "",
             street: "",
-            zipCity: ""
+            zipCity: "",
+            clientType: "privat",
+            workLocation: ""
         },
-        items: [],
-        notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto."
+        items: emptyAll ? [] : [
+            {
+                title: "Arbeitsleistung / Material",
+                description: "Detaillierte Leistungsbeschreibung",
+                quantity: 1,
+                unit: "Std",
+                price: 60.00,
+                total: 60.00
+            },
+            {
+                title: "Arbeitsleistung / Material",
+                description: "Detaillierte Leistungsbeschreibung",
+                quantity: 1,
+                unit: "Std",
+                price: 60.00,
+                total: 60.00
+            }
+        ],
+        notesText: "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen auf das unten genannte Bankkonto."
     };
     appState.activeArchiveId = null;
     const badge = document.getElementById('gen-active-status-badge');
@@ -218,6 +279,8 @@ function saveState() {
 // Mode Switcher (Rechnung / Angebot)
 function setDocType(type) {
     if (appState.docType === type) return;
+    const oldType = appState.docType;
+    const oldArchiveId = appState.activeArchiveId;
     appState.docType = type;
 
     if (type === "angebot") {
@@ -231,7 +294,23 @@ function setDocType(type) {
         if (!appState.docNumber.startsWith('RE-')) {
             appState.docNumber = generateDocNumber("rechnung");
         }
-        appState.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.";
+        appState.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf unser unten genanntes Bankkonto unter Angabe der Rechnungsnummer als Verwendungszweck.";
+
+        // If an offer loaded from archive is turned into an invoice, delete the old offer from the archive
+        if (oldType === 'angebot' && oldArchiveId) {
+            try {
+                const archive = getInvoicesArchive();
+                const qIdx = archive.findIndex(i => String(i.id) === String(oldArchiveId));
+                if (qIdx !== -1) {
+                    archive.splice(qIdx, 1);
+                    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+                    updateAllAppStatesAndBadges();
+                }
+            } catch (e) {
+                console.warn("Could not clean old quote on type switch:", e);
+            }
+            appState.activeArchiveId = null;
+        }
     }
 
     renderAll();
@@ -241,7 +320,9 @@ function setDocType(type) {
 
 // Quick Notes Preset Helper (Exposed globally)
 window.setNotesPreset = function(preset) {
-    if (preset === '14tage') {
+    if (preset === '7tage') {
+        appState.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf das unten genannte Bankkonto.";
+    } else if (preset === '14tage') {
         appState.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.";
     } else if (preset === '30tage') {
         appState.notesText = "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
@@ -250,87 +331,187 @@ window.setNotesPreset = function(preset) {
     } else if (preset === 'bar') {
         appState.notesText = "Betrag dankend bar erhalten bei Fertigstellung und Abnahme der Arbeiten.";
     }
-    document.getElementById('doc-notes-input').value = appState.notesText;
+    const notesInput = document.getElementById('doc-notes-input');
+    if (notesInput) notesInput.value = appState.notesText;
     renderCleanDocument();
     saveState();
-    showToast("Zahlungshinweis aktualisiert");
+    showToast("Zahlungshinweis aktualisiert (7 Tage Zahlungsziel)");
 };
 
-// Item Table Management
-function addCatalogServiceToDoc(serviceId) {
-    const service = SERVICES_CATALOG.find(s => s.id === serviceId);
-    if (!service) return;
+// Item Table & Catalog Management
+function getAllCatalogServices() {
+    let items = (typeof SERVICES_CATALOG !== 'undefined') ? JSON.parse(JSON.stringify(SERVICES_CATALOG)) : [];
+    const customItemsRaw = localStorage.getItem('palnau_custom_catalog');
+    if (customItemsRaw) {
+        try {
+            const customItems = JSON.parse(customItemsRaw);
+            if (Array.isArray(customItems)) {
+                const normalized = customItems.map(c => ({
+                    id: c.id,
+                    name: c.name || c.title || "Individuelle Leistung",
+                    category: c.category || "Eigene",
+                    defaultHourly: parseFloat(c.unitPrice) || 60,
+                    medianHourly: parseFloat(c.unitPrice) || 60,
+                    priceRange: [parseFloat(c.unitPrice) || 60, parseFloat(c.unitPrice) || 60],
+                    typicalWorkers: 1,
+                    defaultUnit: c.standardUnit || c.unit || "Std",
+                    icon: "⭐",
+                    descriptionTemplate: c.description || "",
+                    tags: ["eigene", (c.name || "").toLowerCase()]
+                }));
+                items = [...normalized, ...items];
+            }
+        } catch (e) {
+            console.warn("Could not parse custom catalog:", e);
+        }
+    }
+    return items;
+}
+window.getAllCatalogServices = getAllCatalogServices;
 
-    const rate = service.medianHourly || service.defaultHourly;
-    const workers = service.typicalWorkers || 1;
-    const hours = 4;
-    const qty = service.defaultUnit === "Std" ? (workers * hours) : 1;
-    const price = service.defaultUnit === "Std" ? rate : (rate * 4);
+function addCatalogServiceToDoc(serviceId, optionalQty) {
+    const allServices = getAllCatalogServices();
+    const service = allServices.find(s => s.id === serviceId);
+    if (!service) {
+        showToast("Leistung im Katalog nicht gefunden");
+        return;
+    }
+
+    const unit = service.defaultUnit || service.standardUnit || service.unit || "Std";
+    const rate = parseFloat(service.unitPrice ?? service.medianHourly ?? service.defaultHourly ?? 60) || 60;
+    
+    let qty = 1;
+    if (optionalQty !== undefined && optionalQty !== null) {
+        qty = parseFloat(optionalQty) || 1;
+    } else if (unit === "Std") {
+        const workers = service.typicalWorkers || 1;
+        const hours = 4;
+        qty = workers * hours;
+    } else {
+        qty = 1;
+    }
+
+    const price = rate;
+    const total = Math.round(qty * price * 100) / 100;
+    
+    let description = service.descriptionTemplate || service.description || "";
+    if (unit === "Std" && (!optionalQty || optionalQty === qty)) {
+        const workers = service.typicalWorkers || 1;
+        const hours = 4;
+        if (description) {
+            description = `${workers} Facharbeiter × ${hours}.0 Std. × ${rate.toFixed(2)} € (${description})`;
+        }
+    }
 
     const newItem = {
-        title: service.name,
-        description: service.defaultUnit === "Std" 
-            ? `${workers} Facharbeiter × ${hours}.0 Std. × ${rate.toFixed(2)} € (${service.descriptionTemplate})`
-            : service.descriptionTemplate,
+        id: "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+        title: service.name || "Leistung",
+        description: description,
         quantity: qty,
-        unit: service.defaultUnit || "Std",
+        unit: unit,
         price: price,
-        total: Math.round(qty * price * 100) / 100
+        total: total
     };
 
+    if (!Array.isArray(appState.items)) {
+        appState.items = [];
+    }
     appState.items.push(newItem);
     renderTable();
     updateTotals();
     updateSmartDock();
+    renderCleanDocument();
     saveState();
     closeCatalogModal();
-    showToast(`"${service.name}" eingefügt`);
+    
+    setTimeout(() => {
+        const rows = document.querySelectorAll('.table-row-item');
+        if (rows.length > 0) {
+            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 60);
+
+    showToast(`✓ "${service.name}" hinzugefügt`);
 }
+window.addCatalogServiceToDoc = addCatalogServiceToDoc;
 
 function addAddonServiceToDoc(addonKey) {
     const addon = ADDON_SERVICES[addonKey];
     if (!addon) return;
 
+    const qty = addon.quantity || 1;
+    const price = addon.price || 0;
+    const total = Math.round(qty * price * 100) / 100;
+
     const newItem = {
+        id: "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
         title: addon.title,
-        description: addon.description,
-        quantity: addon.quantity || 1,
+        description: addon.description || "",
+        quantity: qty,
         unit: addon.unit || "Psch",
-        price: addon.price || 0,
-        total: (addon.quantity || 1) * (addon.price || 0)
+        price: price,
+        total: total
     };
 
+    if (!Array.isArray(appState.items)) {
+        appState.items = [];
+    }
     appState.items.push(newItem);
     renderTable();
     updateTotals();
     updateSmartDock();
+    renderCleanDocument();
     saveState();
-    showToast(`"${addon.title}" hinzugefügt`);
+    setTimeout(() => {
+        const rows = document.querySelectorAll('.table-row-item');
+        if (rows.length > 0) {
+            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 60);
+    showToast(`✓ "${addon.title}" hinzugefügt`);
 }
+window.addAddonServiceToDoc = addAddonServiceToDoc;
 
 function addCustomItemToDoc() {
-    appState.items.push({
+    if (!Array.isArray(appState.items)) {
+        appState.items = [];
+    }
+    const newItem = {
+        id: "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
         title: "Arbeitsleistung / Material",
         description: "Detaillierte Leistungsbeschreibung",
         quantity: 1,
         unit: "Std",
         price: 60.00,
         total: 60.00
-    });
+    };
+    appState.items.push(newItem);
     renderTable();
     updateTotals();
     updateSmartDock();
+    renderCleanDocument();
     saveState();
-    showToast("Freie Position angelegt");
+    setTimeout(() => {
+        const titleInputs = document.querySelectorAll('.item-title-field');
+        if (titleInputs.length > 0) {
+            const lastInput = titleInputs[titleInputs.length - 1];
+            lastInput.focus();
+            lastInput.select();
+            lastInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 60);
+    showToast("✓ Freie Position angelegt");
 }
+window.addCustomItemToDoc = addCustomItemToDoc;
 
 function removeItemFromDoc(index) {
     const idx = parseInt(index, 10);
-    if (isNaN(idx) || idx < 0 || !appState.items || idx >= appState.items.length) return;
+    if (isNaN(idx) || idx < 0 || !Array.isArray(appState.items) || idx >= appState.items.length) return;
     const removed = appState.items.splice(idx, 1);
     renderTable();
     updateTotals();
     updateSmartDock();
+    renderCleanDocument();
     saveState();
     const itemTitle = (removed && removed[0] && removed[0].title) ? removed[0].title : "Position";
     showToast(`"${itemTitle}" entfernt.`);
@@ -341,27 +522,36 @@ function updateRowItem(index, field, value) {
     const item = appState.items[index];
     if (!item) return;
 
-    if (field === 'quantity' || field === 'price') {
-        item[field] = parseFloat(value) || 0;
+    if (field === 'quantity') {
+        item.quantity = parseFloat(value) || 0;
         item.total = Math.round(item.quantity * item.price * 100) / 100;
-        
-        // Update Row Total Cell directly
-        const totalCell = document.getElementById(`row-total-${index}`);
-        if (totalCell) totalCell.textContent = formatCurrency(item.total);
+    } else if (field === 'price') {
+        item.price = parseFloat(value) || 0;
+        item.total = Math.round(item.quantity * item.price * 100) / 100;
     } else {
         item[field] = value;
     }
 
+    // Direct DOM sync for row total
+    const totalCell = document.getElementById(`row-total-${index}`);
+    if (totalCell) {
+        totalCell.textContent = formatCurrency(item.total);
+    }
+
     updateTotals();
+    renderCleanDocument();
     saveState();
 }
+window.updateRowItem = updateRowItem;
 
-// Auto resize textarea helper
-window.autoResizeTextarea = function(el) {
+// Auto resize textarea helper with safe minimum height
+function autoResizeTextarea(el) {
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = (el.scrollHeight) + 'px';
-};
+    const computedHeight = Math.max(48, el.scrollHeight);
+    el.style.height = computedHeight + 'px';
+}
+window.autoResizeTextarea = autoResizeTextarea;
 
 // Render Document Items Table (Interactive Clean Desktop View)
 function renderTable() {
@@ -370,11 +560,35 @@ function renderTable() {
 
     tbody.innerHTML = "";
 
+    if (!Array.isArray(appState.items)) {
+        appState.items = [];
+    }
+
+    // Update positions count badge in header
+    const countBadge = document.getElementById('doc-positions-count-badge');
+    if (countBadge) {
+        countBadge.textContent = `${appState.items.length} ${appState.items.length === 1 ? 'Position' : 'Positionen'}`;
+    }
+
     if (appState.items.length === 0) {
         tbody.innerHTML = `
-            <tr>
-                <td colspan="8" style="text-align:center; color:#94a3b8; padding:36px 12px; font-style:italic;">
-                    Noch keine Positionen vorhanden. Klicken Sie unten auf <strong>"Leistung aus Katalog wählen (20+)"</strong> oder <strong>"Freie Position anlegen"</strong>.
+            <tr class="table-empty-row">
+                <td colspan="8" style="text-align:center; padding:24px 12px; background:#f8fafc; border-radius:6px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                        <span style="font-size: 20px;">🌿</span>
+                        <div style="font-weight: 700; color: #0f172a; font-size: 13px;">Noch keine Positionen auf diesem Beleg</div>
+                        <div style="color: #64748b; font-size: 11.5px; max-width: 400px; line-height: 1.4;">
+                            Fügen Sie fertige Leistungen aus dem Katalog oder eine freie Position hinzu.
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 6px;">
+                            <button type="button" class="neu-btn neu-btn-primary" onclick="openCatalogModal()" style="font-size: 11px; padding: 4px 10px; font-weight: 700;">
+                                + Aus Katalog wählen
+                            </button>
+                            <button type="button" class="neu-btn" onclick="addCustomItemToDoc()" style="font-size: 11px; padding: 4px 10px; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1;">
+                                + Freie Position
+                            </button>
+                        </div>
+                    </div>
                 </td>
             </tr>
         `;
@@ -382,62 +596,123 @@ function renderTable() {
         return;
     }
 
+    const availableUnits = ["Std", "Psch", "m²", "m", "Stk", "t", "m³"];
+
     appState.items.forEach((item, index) => {
-        const tr = document.createElement('tr');
-        tr.className = 'table-row-item';
-        tr.innerHTML = `
-            <td class="col-chk" style="text-align: center; vertical-align: middle;">
-                <input type="checkbox" class="doc-item-chk" data-index="${index}" onchange="updateDocItemsSelectedState()" style="width: 15px; height: 15px; accent-color: #0284c7; cursor: pointer;">
-            </td>
+        if (!item) return;
+        try {
+            // Fallback normalization
+            const itemTitle = item.title || item.name || "";
+            const itemDesc = item.description || item.descriptionTemplate || "";
+            const itemQty = (item.quantity !== undefined && item.quantity !== null && !isNaN(item.quantity)) ? item.quantity : 1;
+            const itemUnit = item.unit || item.standardUnit || "Std";
+            const itemPrice = (item.price !== undefined && item.price !== null && !isNaN(item.price)) ? item.price : (parseFloat(item.unitPrice) || 0);
+            const itemTotal = (item.total !== undefined && item.total !== null && !isNaN(item.total)) ? item.total : Math.round(itemQty * itemPrice * 100) / 100;
 
-            <td class="col-pos" style="text-align: center; font-weight: 700; color: #64748b; font-size: 13px; vertical-align: middle;">${index + 1}</td>
+            // Keep item consistent
+            item.title = itemTitle;
+            item.description = itemDesc;
+            item.quantity = itemQty;
+            item.unit = itemUnit;
+            item.price = itemPrice;
+            item.total = itemTotal;
 
-            <td class="col-desc">
-                <input type="text" class="item-title-field" value="${escapeHtml(item.title)}" placeholder="Bezeichnung (z. B. Heckenschnitt)..." oninput="updateRowItem(${index}, 'title', this.value)">
-                <textarea class="item-desc-field" rows="1" placeholder="Detaillierte Leistungsbeschreibung..." oninput="updateRowItem(${index}, 'description', this.value); autoResizeTextarea(this);">${escapeHtml(item.description)}</textarea>
-            </td>
+            // Build Unit Dropdown
+            let unitOptionsHtml = "";
+            let unitFound = false;
+            availableUnits.forEach(u => {
+                const isSel = (itemUnit === u);
+                if (isSel) unitFound = true;
+                unitOptionsHtml += `<option value="${u}" ${isSel ? 'selected' : ''}>${u}</option>`;
+            });
+            if (!unitFound && itemUnit) {
+                unitOptionsHtml += `<option value="${escapeHtml(itemUnit)}" selected>${escapeHtml(itemUnit)}</option>`;
+            }
 
-            <td class="col-qty" style="text-align: right;">
-                <input type="number" step="0.5" class="item-number-field item-qty-field" value="${item.quantity}" oninput="updateRowItem(${index}, 'quantity', this.value)">
-            </td>
+            const tr = document.createElement('tr');
+            tr.className = 'table-row-item';
+            tr.id = `table-row-${index}`;
+            tr.innerHTML = `
+                <td class="col-chk" style="width: 32px; text-align: center; vertical-align: top; padding-top: 11px;">
+                    <input type="checkbox" class="doc-item-chk" data-index="${index}" onchange="updateDocItemsSelectedState()" style="width: 16px; height: 16px; accent-color: #0284c7; cursor: pointer;">
+                </td>
 
-            <td class="col-unit" style="text-align: center;">
-                <select class="item-select-field" onchange="updateRowItem(${index}, 'unit', this.value)">
-                    <option value="Std" ${item.unit === 'Std' ? 'selected' : ''}>Std</option>
-                    <option value="Psch" ${item.unit === 'Psch' ? 'selected' : ''}>Psch</option>
-                    <option value="m²" ${item.unit === 'm²' ? 'selected' : ''}>m²</option>
-                    <option value="m" ${item.unit === 'm' ? 'selected' : ''}>m</option>
-                    <option value="Stk" ${item.unit === 'Stk' ? 'selected' : ''}>Stk</option>
-                    <option value="t" ${item.unit === 't' ? 'selected' : ''}>t</option>
-                    <option value="m³" ${item.unit === 'm³' ? 'selected' : ''}>m³</option>
-                </select>
-            </td>
+                <td class="col-pos" style="width: 36px; text-align: center; font-weight: 700; color: #475569; font-size: 13px; vertical-align: top; padding-top: 11px;">
+                    ${index + 1}
+                </td>
 
-            <td class="col-price" style="text-align: right;">
-                <input type="number" step="0.5" class="item-number-field item-price-field" value="${item.price}" oninput="updateRowItem(${index}, 'price', this.value)">
-            </td>
+                <td class="col-desc" style="vertical-align: top;">
+                    <div class="item-desc-wrapper">
+                        <input type="text" class="item-title-field" value="${escapeHtml(item.title)}" placeholder="Bezeichnung der Leistung (z. B. Heckenschnitt)..." oninput="updateRowItem(${index}, 'title', this.value)" title="Klicken zum Bearbeiten der Bezeichnung">
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; width: 100%;">
+                            <textarea class="item-desc-field" rows="2" placeholder="Detaillierte Leistungsbeschreibung..." oninput="updateRowItem(${index}, 'description', this.value); autoResizeTextarea(this);" title="Klicken zum Bearbeiten der Beschreibung">${escapeHtml(item.description)}</textarea>
+                            <button type="button" class="row-reorder-btn" title="Position nach oben/unten verschieben" onclick="promptMoveItem(${index})" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 16px; padding: 4px; line-height: 1; user-select: none;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">↕</button>
+                        </div>
+                    </div>
+                </td>
 
-            <td class="col-total" style="text-align: right; font-weight: 700; color: #0f172a; font-size: 13px;" id="row-total-${index}">
-                ${formatCurrency(item.total)}
-            </td>
+                <td class="col-qty" style="width: 72px; text-align: center; vertical-align: top;">
+                    <input type="number" step="0.5" min="0" class="item-number-field item-qty-field" value="${item.quantity}" oninput="updateRowItem(${index}, 'quantity', this.value)" title="Menge anpassen">
+                </td>
 
-            <td class="col-delete" style="text-align: center; vertical-align: middle;">
-                <button type="button" class="row-action-delete" title="Position löschen" onclick="event.stopPropagation(); removeItemFromDoc(${index}); return false;">✕</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
+                <td class="col-unit" style="width: 78px; text-align: center; vertical-align: top;">
+                    <select class="item-select-field" onchange="updateRowItem(${index}, 'unit', this.value)" title="Einheit wählen">
+                        ${unitOptionsHtml}
+                    </select>
+                </td>
 
-        // Auto-fit initial textarea height
-        const descTextarea = tr.querySelector('.item-desc-field');
-        if (descTextarea) {
-            autoResizeTextarea(descTextarea);
+                <td class="col-price" style="width: 95px; text-align: right; vertical-align: top;">
+                    <div class="price-input-wrapper">
+                        <input type="number" step="0.5" min="0" class="item-number-field item-price-field" value="${item.price}" oninput="updateRowItem(${index}, 'price', this.value)" title="Einzelpreis netto anpassen">
+                        <span class="currency-symbol">€</span>
+                    </div>
+                </td>
+
+                <td class="col-total" style="width: 96px; text-align: right; font-weight: 700; color: #0f172a; font-size: 13.5px; vertical-align: top; padding-top: 11px;" id="row-total-${index}">
+                    ${formatCurrency(item.total)}
+                </td>
+
+                <td class="col-delete" style="width: 34px; text-align: center; vertical-align: top; padding-top: 8px;">
+                    <button type="button" class="row-action-delete" title="Position löschen" onclick="event.stopPropagation(); removeItemFromDoc(${index}); return false;">✕</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            // Auto-fit initial textarea height safely
+            const descTextarea = tr.querySelector('.item-desc-field');
+            if (descTextarea) {
+                autoResizeTextarea(descTextarea);
+            }
+        } catch (err) {
+            console.error("Fehler beim Rendern von Tabellenzeile", index, err);
         }
     });
 
     if (typeof updateDocItemsSelectedState === 'function') updateDocItemsSelectedState();
 }
+window.renderTable = renderTable;
 
-window.toggleSelectAllDocItems = function(forceChecked) {
+function promptMoveItem(index) {
+    if (!Array.isArray(appState.items) || appState.items.length <= 1) return;
+    if (index > 0) {
+        const item = appState.items.splice(index, 1)[0];
+        appState.items.splice(index - 1, 0, item);
+        renderTable();
+        renderCleanDocument();
+        saveState();
+        showToast("Position nach oben verschoben");
+    } else {
+        const item = appState.items.splice(index, 1)[0];
+        appState.items.splice(index + 1, 0, item);
+        renderTable();
+        renderCleanDocument();
+        saveState();
+        showToast("Position nach unten verschoben");
+    }
+}
+window.promptMoveItem = promptMoveItem;
+
+function toggleSelectAllDocItems(forceChecked) {
     const checkboxes = document.querySelectorAll('.doc-item-chk');
     if (checkboxes.length === 0) return;
     
@@ -454,9 +729,10 @@ window.toggleSelectAllDocItems = function(forceChecked) {
     });
 
     updateDocItemsSelectedState();
-};
+}
+window.toggleSelectAllDocItems = toggleSelectAllDocItems;
 
-window.updateDocItemsSelectedState = function() {
+function updateDocItemsSelectedState() {
     const checkboxes = document.querySelectorAll('.doc-item-chk');
     const checked = Array.from(checkboxes).filter(cb => cb.checked);
     const count = checked.length;
@@ -486,9 +762,10 @@ window.updateDocItemsSelectedState = function() {
         headerChk.checked = count === total && total > 0;
         headerChk.indeterminate = count > 0 && count < total;
     }
-};
+}
+window.updateDocItemsSelectedState = updateDocItemsSelectedState;
 
-window.deleteSelectedDocItems = function() {
+function deleteSelectedDocItems() {
     const checkboxes = document.querySelectorAll('.doc-item-chk:checked');
     if (checkboxes.length === 0) return;
     
@@ -509,9 +786,10 @@ window.deleteSelectedDocItems = function() {
     updateSmartDock();
     saveState();
     showToast(`${indicesToDelete.length} Position(en) entfernt.`);
-};
+}
+window.deleteSelectedDocItems = deleteSelectedDocItems;
 
-window.duplicateSelectedDocItems = function() {
+function duplicateSelectedDocItems() {
     const checkboxes = document.querySelectorAll('.doc-item-chk:checked');
     if (checkboxes.length === 0) return;
 
@@ -532,7 +810,8 @@ window.duplicateSelectedDocItems = function() {
     updateSmartDock();
     saveState();
     showToast(`${indicesToDuplicate.length} Position(en) dupliziert.`);
-};
+}
+window.duplicateSelectedDocItems = duplicateSelectedDocItems;
 
 // Calculate Totals
 function calculateTotals() {
@@ -614,6 +893,7 @@ function updateSmartDock() {
 // Master Render All Document Fields
 function renderAll() {
     const isQuote = appState.docType === "angebot";
+    const clientType = appState.clientType || "privat";
 
     // Mode Buttons in Neumorphic Switcher
     const btnRechnung = document.getElementById('btn-mode-rechnung');
@@ -634,6 +914,12 @@ function renderAll() {
         btnAngebotTop.classList.toggle('quote-active', isQuote);
     }
 
+    // Generator header convert button: Visible when in Angebot mode
+    const btnConvertToInvoice = document.getElementById('btn-convert-to-invoice');
+    if (btnConvertToInvoice) {
+        btnConvertToInvoice.style.display = isQuote ? 'inline-flex' : 'none';
+    }
+
     const genBadge = document.getElementById('gen-active-status-badge');
     if (genBadge) {
         if (appState.activeArchiveId) {
@@ -652,21 +938,68 @@ function renderAll() {
         btnDeleteActive.style.display = appState.activeArchiveId ? 'block' : 'none';
     }
 
+    // Kundentyp Toggle & UI
+    const btnTypePrivat = document.getElementById('btn-client-type-privat');
+    const btnTypeFirma = document.getElementById('btn-client-type-firma');
+    const badgeType = document.getElementById('client-type-indicator-badge');
+    const workLocContainer = document.getElementById('firma-work-location-field');
+    const workLocInput = document.getElementById('doc-work-location');
+
+    if (btnTypePrivat) btnTypePrivat.classList.toggle('active', clientType !== 'firma');
+    if (btnTypeFirma) btnTypeFirma.classList.toggle('active', clientType === 'firma');
+    if (badgeType) {
+        if (clientType === 'firma') {
+            badgeType.textContent = "Firma / Gewerbekunde";
+            badgeType.style.background = "#eff6ff";
+            badgeType.style.color = "#1d4ed8";
+        } else {
+            badgeType.textContent = "Privatperson";
+            badgeType.style.background = "#ecfdf5";
+            badgeType.style.color = "#047857";
+        }
+    }
+
+    if (workLocContainer) {
+        workLocContainer.style.display = (clientType === 'firma') ? 'block' : 'none';
+    }
+    const docWorkLocRow = document.getElementById('doc-work-location-row');
+    if (docWorkLocRow) {
+        docWorkLocRow.style.display = (clientType === 'firma') ? 'block' : 'none';
+    }
+    if (workLocInput) {
+        workLocInput.value = appState.workLocation || "";
+    }
+
     // Client Fields
-    document.getElementById('doc-client-name').value = appState.client.name || "";
-    document.getElementById('doc-client-street').value = appState.client.street || "";
-    document.getElementById('doc-client-zipcity').value = appState.client.zipCity || "";
+    const clientNameInput = document.getElementById('doc-client-name');
+    if (clientNameInput) {
+        clientNameInput.value = appState.client.name || "";
+        clientNameInput.placeholder = (clientType === 'firma') 
+            ? "Firmenname / Gewerbebetrieb eingeben (z. B. Mustermann Gartenbau)" 
+            : "Kundenname / Firma eingeben (z. B. Familie Weber)";
+    }
+    const streetInput = document.getElementById('doc-client-street');
+    if (streetInput) streetInput.value = appState.client.street || "";
+    const zipCityInput = document.getElementById('doc-client-zipcity');
+    if (zipCityInput) zipCityInput.value = appState.client.zipCity || "";
 
     // Meta Details
-    document.getElementById('doc-number-label').textContent = isQuote ? "Angebot Nr.:" : "Rechnung Nr.:";
-    document.getElementById('doc-meta-number').value = appState.docNumber || "";
-    document.getElementById('doc-meta-date').value = appState.docDate || "";
-    document.getElementById('doc-period-label').textContent = isQuote ? "Gültig bis / Zeitraum:" : "Leistungszeitraum:";
-    document.getElementById('doc-meta-period').value = appState.servicePeriod || "";
-    document.getElementById('doc-meta-taxrate').value = appState.taxRate !== undefined ? appState.taxRate : 19;
+    const numLabel = document.getElementById('doc-number-label');
+    if (numLabel) numLabel.textContent = isQuote ? "Angebot Nr.:" : "Rechnung Nr.:";
+    const metaNum = document.getElementById('doc-meta-number');
+    if (metaNum) metaNum.value = appState.docNumber || "";
+    const metaDate = document.getElementById('doc-meta-date');
+    if (metaDate) metaDate.value = appState.docDate || "";
+    const periodLabel = document.getElementById('doc-period-label');
+    if (periodLabel) periodLabel.textContent = isQuote ? "Gültig bis / Zeitraum:" : "Leistungszeitraum:";
+    const metaPeriod = document.getElementById('doc-meta-period');
+    if (metaPeriod) metaPeriod.value = appState.servicePeriod || "";
+    const metaTax = document.getElementById('doc-meta-taxrate');
+    if (metaTax) metaTax.value = appState.taxRate !== undefined ? appState.taxRate : 19;
 
     // Document Title
-    document.getElementById('doc-main-title').textContent = isQuote ? "ANGEBOT" : "RECHNUNG";
+    const mainTitle = document.getElementById('doc-main-title');
+    if (mainTitle) mainTitle.textContent = isQuote ? "ANGEBOT" : "RECHNUNG";
 
     // Mobile Doc Badge
     const mobileDocBadge = document.getElementById('mobile-doc-badge');
@@ -675,8 +1008,25 @@ function renderAll() {
         mobileDocBadge.classList.toggle('quote-mode', isQuote);
     }
 
+    // Statutory Retention Notice (displayed on Invoices when client is Privatperson)
+    const retentionBox = document.getElementById('doc-retention-notice');
+    if (retentionBox) {
+        retentionBox.style.display = (!isQuote && clientType !== 'firma') ? 'block' : 'none';
+    }
+
+    // Senior Bank Box Reference & Footer Bank Reference
+    const footerBankDocNum = document.getElementById('footer-bank-doc-number');
+    if (footerBankDocNum) {
+        footerBankDocNum.textContent = appState.docNumber || (isQuote ? 'ANG-2026-XXXX' : 'RE-2026-XXXX');
+    }
+    const seniorBankRef = document.getElementById('senior-bank-reference');
+    if (seniorBankRef) {
+        seniorBankRef.textContent = appState.docNumber || (isQuote ? 'ANG-2026-XXXX' : 'RE-2026-XXXX');
+    }
+
     // Notes
-    document.getElementById('doc-notes-input').value = appState.notesText || "";
+    const notesInput = document.getElementById('doc-notes-input');
+    if (notesInput) notesInput.value = appState.notesText || "";
 
     // Table & Totals
     renderTable();
@@ -687,60 +1037,97 @@ function renderAll() {
 
 /**
  * GENERATE PRISTINE CLEAN DOCUMENT FOR PDF & PRINT EXPORT
- * (No input tags, no dropdown arrows, no buttons, no resize handles)
+ * High-legibility font scaling, DIN 5008 window envelope positioning, and accessible bank details in footer
  */
 function renderCleanDocument() {
     const cleanContainer = document.getElementById('clean-pdf-document');
     if (!cleanContainer) return;
 
     const isQuote = appState.docType === "angebot";
+    const clientType = appState.clientType || "privat";
     const totals = calculateTotals();
 
     let itemsHtml = "";
     if (appState.items.length === 0) {
-        itemsHtml = `<tr><td colspan="6" style="text-align:center; color:#999; padding:25px;">Keine Positionen vorhanden.</td></tr>`;
+        itemsHtml = `<tr><td colspan="6" style="text-align:center; color:#999; padding:25px; font-size:14px;">Keine Positionen vorhanden.</td></tr>`;
     } else {
         appState.items.forEach((item, index) => {
+            const descHtml = item.description 
+                ? `<small style="color:#475569; font-size:12.5px; line-height:1.4; display:block; margin-top:2px;">${escapeHtml(item.description)}</small>` 
+                : '';
             itemsHtml += `
                 <tr>
-                    <td style="width: 30px; text-align: center;">${index + 1}</td>
+                    <td style="width: 35px; text-align: center; font-size: 13.5px; font-weight: 700; color: #64748b;">${index + 1}</td>
                     <td>
-                        <strong style="color:#222; font-size:12px;">${escapeHtml(item.title)}</strong><br>
-                        <small style="color:#666; font-size:10px;">${escapeHtml(item.description)}</small>
+                        <strong style="color:#0f172a; font-size:14.5px;">${escapeHtml(item.title)}</strong>
+                        ${descHtml}
                     </td>
-                    <td style="width: 50px; text-align: right;">${item.quantity}</td>
-                    <td style="width: 45px; text-align: center;">${escapeHtml(item.unit)}</td>
-                    <td style="width: 75px; text-align: right;">${formatCurrency(item.price)}</td>
-                    <td style="width: 80px; text-align: right; font-weight: bold;">${formatCurrency(item.total)}</td>
+                    <td style="width: 55px; text-align: right; font-size: 14px; font-weight: 600;">${item.quantity}</td>
+                    <td style="width: 50px; text-align: center; font-size: 13.5px; color: #475569;">${escapeHtml(item.unit)}</td>
+                    <td style="width: 85px; text-align: right; font-size: 14px;">${formatCurrency(item.price)}</td>
+                    <td style="width: 95px; text-align: right; font-weight: 800; font-size: 14.5px; color: #0f172a;">${formatCurrency(item.total)}</td>
                 </tr>
             `;
         });
     }
 
+    // Work location badge (prominently placed above company name when client is a Firma)
+    let workLocationHtml = "";
+    if (clientType === 'firma' && (appState.workLocation || '').trim()) {
+        workLocationHtml = `
+            <div style="margin-bottom: 6px; padding: 4px 8px; background: #f0f9ff; border-left: 3px solid #0284c7; font-size: 12px; color: #0369a1; font-weight: 600;">
+                📍 Ausführungsort: ${escapeHtml(appState.workLocation)}
+            </div>
+        `;
+    }
+
+    // Statutory retention notice (Required by law for Invoices when client is a Private Person)
+    let retentionNoticeHtml = "";
+    if (!isQuote && clientType !== 'firma') {
+        retentionNoticeHtml = `
+            <div style="margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 12.5px; line-height: 1.45; color: #1e293b;">
+                <strong>Gesetzliche Aufbewahrungspflicht für Privatpersonen:</strong><br>
+                Der Gesetzgeber verpflichtet, wenn der Auftraggeber eine Privatperson ist, diesen laut § 14 Abs. 4 Nr. 9 i. V. m. § 14b Abs. 1 UStG darauf hinzuweisen, Rechnungen mindestens 2 Jahre aufzubewahren.
+            </div>
+        `;
+    }
+
     cleanContainer.innerHTML = `
         <div class="clean-body-content">
+            <!-- DIN 5008 Falz- und Lochmarken für DIN-Lang Fensterbriefumschläge -->
+            <div class="din-fold-mark din-fold-mark-1" title="Falzmarke 1 (105mm)"></div>
+            <div class="din-fold-mark din-punch-mark" title="Lochmarke (148.5mm)"></div>
+            <div class="din-fold-mark din-fold-mark-2" title="Falzmarke 2 (210mm)"></div>
+
             <!-- Header -->
             <div class="clean-header">
                 <div class="clean-company-info">
-                    <strong style="font-size:13px; color:#222;">Palnau Gartenbau GmbH</strong><br>
-                    Reihelberg 3, 75210 Keltern-Dietlingen<br>
-                    Tel: 07231 466641 | Email: gartenbauu@gmail.com
+                    <strong style="font-size:16px; color:#0f172a;">Palnau Gartenbau GmbH</strong>
+                    <span>Reihelberg 3, 75210 Keltern-Dietlingen</span><br>
+                    <span>Tel: 07231 466641 | Email: gartenbauu@gmail.com</span>
                 </div>
             </div>
 
-            <!-- Client Address -->
-            <div class="clean-client-address">
-                <div class="clean-return-line">Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen</div>
-                <strong>${escapeHtml(appState.client.name || 'Max Mustermann')}</strong><br>
-                ${escapeHtml(appState.client.street || '')}<br>
-                ${escapeHtml(appState.client.zipCity || '')}
-            </div>
+            <!-- DIN 5008 Adresszone für Fensterbriefe (Heruntergezogen, passgenau für Sichtfenster) -->
+            <div class="clean-address-meta-row">
+                <!-- Client Address with Sender Return Line -->
+                <div class="clean-client-address">
+                    <div class="clean-return-line">Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern-Dietlingen</div>
+                    <div class="clean-address-box">
+                        ${workLocationHtml}
+                        <strong style="font-size: 15.5px; color: #0f172a; display: block; margin-bottom: 2px;">${escapeHtml(appState.client.name || (clientType === 'firma' ? 'Firma / Gewerbekunde' : 'Kunde'))}</strong>
+                        <span style="font-size: 14px; color: #1e293b; display: block;">${escapeHtml(appState.client.street || '')}</span>
+                        <span style="font-size: 14px; color: #1e293b; display: block;">${escapeHtml(appState.client.zipCity || '')}</span>
+                    </div>
+                </div>
 
-            <!-- Document Meta Details (Right Aligned) -->
-            <div class="clean-doc-details">
-                <strong>${isQuote ? 'Angebot Nr.:' : 'Rechnung Nr.:'}</strong> ${escapeHtml(appState.docNumber)}<br>
-                <strong>Datum:</strong> ${escapeHtml(appState.docDate)}<br>
-                <strong>${isQuote ? 'Gültig bis / Zeitraum:' : 'Leistungszeitraum:'}</strong> ${escapeHtml(appState.servicePeriod)}
+                <!-- Document Meta Details (Right Aligned) -->
+                <div class="clean-doc-details">
+                    <div style="margin-bottom: 4px;"><strong style="font-size: 14.5px;">${isQuote ? 'Angebot Nr.:' : 'Rechnung Nr.:'}</strong> <span style="font-size: 15px; font-weight: 800; color:#0f172a;">${escapeHtml(appState.docNumber)}</span></div>
+                    <div style="margin-bottom: 4px;"><strong style="font-size: 14.5px;">Datum:</strong> <span style="font-size: 14.5px; font-weight: 700;">${escapeHtml(appState.docDate)}</span></div>
+                    <div style="margin-bottom: 4px;"><strong style="font-size: 14.5px;">${isQuote ? 'Gültig bis:' : 'Leistungszeitraum:'}</strong> <span style="font-size: 14.5px;">${escapeHtml(appState.servicePeriod)}</span></div>
+                    <div><strong style="font-size: 14px;">MwSt-Satz:</strong> <span style="font-size: 14px;">${appState.taxRate}%</span></div>
+                </div>
             </div>
 
             <!-- Document Heading (H1) -->
@@ -750,12 +1137,12 @@ function renderCleanDocument() {
             <table class="clean-table">
                 <thead>
                     <tr>
-                        <th style="width: 30px; text-align: center;">Pos.</th>
-                        <th>Beschreibung</th>
-                        <th style="width: 50px; text-align: right;">Menge</th>
-                        <th style="width: 45px; text-align: center;">Einheit</th>
-                        <th style="width: 75px; text-align: right;">Einzelpreis</th>
-                        <th style="width: 80px; text-align: right;">Gesamt</th>
+                        <th style="width: 35px; text-align: center; font-size: 13px;">Pos.</th>
+                        <th style="font-size: 13px;">Beschreibung</th>
+                        <th style="width: 55px; text-align: right; font-size: 13px;">Menge</th>
+                        <th style="width: 50px; text-align: center; font-size: 13px;">Einheit</th>
+                        <th style="width: 85px; text-align: right; font-size: 13px;">Einzelpreis</th>
+                        <th style="width: 95px; text-align: right; font-size: 13px;">Gesamt</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -763,7 +1150,7 @@ function renderCleanDocument() {
                 </tbody>
             </table>
 
-            <!-- Totals Box -->
+            <!-- Totals Box (Dezent, professionell skaliert, kein überdimensionierter Betrag) -->
             <div class="clean-totals">
                 <div class="clean-total-row">
                     <span>Zwischensumme (Netto):</span>
@@ -775,7 +1162,7 @@ function renderCleanDocument() {
                 </div>
                 <div class="clean-total-row grand">
                     <span>${isQuote ? 'Angebotsbetrag:' : 'Rechnungsbetrag:'}</span>
-                    <span>${formatCurrency(totals.grossTotal)}</span>
+                    <span style="white-space: nowrap;">${formatCurrency(totals.grossTotal)}</span>
                 </div>
             </div>
 
@@ -783,25 +1170,32 @@ function renderCleanDocument() {
             <div class="clean-notes">
                 <p>${escapeHtml(appState.notesText)}</p>
             </div>
+
+            <!-- Gesetzliche Aufbewahrungspflicht für Privatpersonen -->
+            ${retentionNoticeHtml}
         </div>
 
-        <!-- Footer (3 Columns) - Fixed at bottom of page -->
+        <!-- Footer (Subtle, balanced, matching font, style and size on bottom of each page) -->
         <div class="clean-footer">
             <div class="clean-footer-grid">
-                <div>
-                    <strong>Bankverbindung:</strong><br>
-                    Sparkasse Pforzheim Calw<br>
-                    IBAN: DE66 6665 0085 0005 9928 34<br>
-                    BIC: PFORDE66XXX
+                <div class="clean-footer-bank-col">
+                    <strong class="clean-footer-col-title">Bankverbindung</strong>
+                    <div class="clean-footer-row">Sparkasse Pforzheim Calw</div>
+                    <div class="clean-footer-row">IBAN: DE66 6665 0085 0005 9928 34</div>
+                    <div class="clean-footer-row">BIC: PFORDE66XXX</div>
+                    <div class="clean-footer-row">Verwendungszweck: ${escapeHtml(appState.docNumber)}</div>
                 </div>
                 <div>
-                    <strong>Steuerdaten:</strong><br>
-                    Steuernummer: 41413-45017
+                    <strong class="clean-footer-col-title">Steuerdaten</strong>
+                    <div class="clean-footer-row">Steuernummer: 41413-45017</div>
+                    <div class="clean-footer-row">USt-IdNr.: Gemäß § 19 / § 14 UStG</div>
+                    <div class="clean-footer-row">Finanzamt Mühlacker</div>
                 </div>
                 <div>
-                    <strong>Geschäftsführer:</strong><br>
-                    Andrei Priala<br>
-                    Tel: 07231 466641 | gartenbauu@gmail.com
+                    <strong class="clean-footer-col-title">Geschäftsführer & Kontakt</strong>
+                    <div class="clean-footer-row">Andrei Priala</div>
+                    <div class="clean-footer-row">Tel: 07231 466641 | Mobil: 0176 12345678</div>
+                    <div class="clean-footer-row">Email: gartenbauu@gmail.com</div>
                 </div>
             </div>
         </div>
@@ -850,7 +1244,17 @@ function openCatalogModal() {
     const modal = document.getElementById('catalog-modal');
     if (modal) {
         modal.classList.add('open');
-        document.getElementById('modal-catalog-search').focus();
+        try {
+            renderModalCards();
+        } catch (err) {
+            console.error("renderModalCards error:", err);
+        }
+        const searchInput = document.getElementById('modal-catalog-search');
+        if (searchInput) {
+            setTimeout(() => {
+                try { searchInput.focus(); } catch (e) {}
+            }, 50);
+        }
     }
 }
 window.openCatalogModal = openCatalogModal;
@@ -867,33 +1271,56 @@ function renderModalCards() {
 
     container.innerHTML = "";
 
-    const filtered = SERVICES_CATALOG.filter(s => {
-        const matchesCategory = modalActiveCategory === "all" || s.category === modalActiveCategory;
-        const matchesSearch = !modalSearchTerm ||
-            s.name.toLowerCase().includes(modalSearchTerm) ||
-            s.tags.some(t => t.toLowerCase().includes(modalSearchTerm));
-        return matchesCategory && matchesSearch;
+    const allServices = (typeof getAllCatalogServices === 'function') 
+        ? getAllCatalogServices() 
+        : ((typeof SERVICES_CATALOG !== 'undefined') ? SERVICES_CATALOG : []);
+
+    const sTerm = (modalSearchTerm || "").toLowerCase().trim();
+
+    const filtered = allServices.filter(s => {
+        if (!s) return false;
+        const matchesCategory = (!modalActiveCategory || modalActiveCategory === "all") || (s.category === modalActiveCategory);
+        if (!matchesCategory) return false;
+        if (!sTerm) return true;
+
+        const nameMatches = s.name && s.name.toLowerCase().includes(sTerm);
+        const descMatches = (s.descriptionTemplate && s.descriptionTemplate.toLowerCase().includes(sTerm)) ||
+                            (s.description && s.description.toLowerCase().includes(sTerm));
+        const tagsMatches = Array.isArray(s.tags) && s.tags.some(t => String(t).toLowerCase().includes(sTerm));
+
+        return nameMatches || descMatches || tagsMatches;
     });
 
-    if (filtered.length === 0) {
-        container.innerHTML = `<div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: #94a3b8;">Keine Leistungen gefunden.</div>`;
+    if (!filtered || filtered.length === 0) {
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 32px 16px; text-align: center; color: #64748b;">
+                <div style="font-size: 24px; margin-bottom: 8px;">🌿</div>
+                <div style="font-weight: 700; color: #1e293b; font-size: 14px; margin-bottom: 4px;">Keine Leistungen gefunden</div>
+                <div style="font-size: 12px; color: #94a3b8;">Probieren Sie einen anderen Suchbegriff oder wählen Sie "Alle".</div>
+            </div>`;
         return;
     }
 
     filtered.forEach(service => {
         const card = document.createElement('div');
         card.className = 'catalog-card-item';
+        const rate = Number(service.medianHourly || service.defaultHourly || service.unitPrice || 60);
+        const desc = service.descriptionTemplate || service.description || "Garten- und Landschaftsbau";
+        const unit = service.defaultUnit || service.standardUnit || "Std";
         card.innerHTML = `
             <div>
-                <div class="card-item-title">${service.icon || '🌿'} ${escapeHtml(service.name)}</div>
-                <div class="card-item-desc">${escapeHtml(service.descriptionTemplate)}</div>
+                <div class="card-item-title">${service.icon || '🌿'} ${escapeHtml(service.name || 'Leistung')}</div>
+                <div class="card-item-desc">${escapeHtml(desc)}</div>
             </div>
             <div class="card-item-footer">
-                <span>Ø ${service.medianHourly} €/h (${service.priceRange[0]}-${service.priceRange[1]} €)</span>
-                <button class="neu-btn neu-btn-primary" style="padding: 4px 10px; font-size: 0.72rem;">+ Einfügen</button>
+                <span style="font-weight: 700; color: #047857;">${rate.toFixed(2)} € / ${unit}</span>
+                <button type="button" class="neu-btn neu-btn-primary" style="padding: 5px 12px; font-size: 0.8rem; font-weight: bold;">+ Einfügen</button>
             </div>
         `;
-        card.addEventListener('click', () => addCatalogServiceToDoc(service.id));
+        card.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            addCatalogServiceToDoc(service.id);
+        });
         container.appendChild(card);
     });
 }
@@ -907,62 +1334,75 @@ function setupEventListeners() {
     document.getElementById('btn-mode-angebot-top')?.addEventListener('click', () => setDocType('angebot'));
 
     // Quick Actions
-    document.getElementById('btn-load-sample').addEventListener('click', () => {
+    document.getElementById('btn-load-sample')?.addEventListener('click', () => {
         loadSampleData(appState.docType);
         showToast("Beispiel-Vorlage eingefügt");
     });
-    document.getElementById('btn-reset').addEventListener('click', () => {
+    document.getElementById('btn-reset')?.addEventListener('click', () => {
         resetCurrentDoc();
     });
-    document.getElementById('btn-print').addEventListener('click', () => {
+    document.getElementById('btn-print')?.addEventListener('click', () => {
         renderCleanDocument();
+        document.body.classList.add('printing-clean');
         window.print();
+        setTimeout(() => {
+            document.body.classList.remove('printing-clean');
+        }, 1000);
     });
-    document.getElementById('btn-download-pdf').addEventListener('click', exportToPdf);
+    document.getElementById('btn-download-pdf')?.addEventListener('click', exportToPdf);
 
     // Custom Item Add
-    document.getElementById('btn-table-add-custom').addEventListener('click', addCustomItemToDoc);
+    document.getElementById('btn-table-add-custom')?.addEventListener('click', addCustomItemToDoc);
 
     // Direct Inputs on Document
-    document.getElementById('doc-client-name').addEventListener('input', (e) => {
+    document.getElementById('doc-client-name')?.addEventListener('input', (e) => {
         appState.client.name = e.target.value;
         renderCleanDocument();
         saveState();
     });
-    document.getElementById('doc-client-street').addEventListener('input', (e) => {
+    document.getElementById('doc-work-location')?.addEventListener('input', (e) => {
+        handleWorkLocationChange(e.target.value);
+    });
+    document.getElementById('btn-client-type-privat')?.addEventListener('click', () => {
+        setClientType('privat');
+    });
+    document.getElementById('btn-client-type-firma')?.addEventListener('click', () => {
+        setClientType('firma');
+    });
+    document.getElementById('doc-client-street')?.addEventListener('input', (e) => {
         appState.client.street = e.target.value;
         renderCleanDocument();
         saveState();
     });
-    document.getElementById('doc-client-zipcity').addEventListener('input', (e) => {
+    document.getElementById('doc-client-zipcity')?.addEventListener('input', (e) => {
         appState.client.zipCity = e.target.value;
         renderCleanDocument();
         saveState();
     });
 
-    document.getElementById('doc-meta-number').addEventListener('input', (e) => {
+    document.getElementById('doc-meta-number')?.addEventListener('input', (e) => {
         appState.docNumber = e.target.value;
         renderCleanDocument();
         saveState();
     });
-    document.getElementById('doc-meta-date').addEventListener('input', (e) => {
+    document.getElementById('doc-meta-date')?.addEventListener('input', (e) => {
         appState.docDate = e.target.value;
         renderCleanDocument();
         saveState();
     });
-    document.getElementById('doc-meta-period').addEventListener('input', (e) => {
+    document.getElementById('doc-meta-period')?.addEventListener('input', (e) => {
         appState.servicePeriod = e.target.value;
         renderCleanDocument();
         saveState();
     });
-    document.getElementById('doc-meta-taxrate').addEventListener('change', (e) => {
+    document.getElementById('doc-meta-taxrate')?.addEventListener('change', (e) => {
         appState.taxRate = parseFloat(e.target.value) || 0;
         updateTotals();
         renderCleanDocument();
         saveState();
     });
 
-    document.getElementById('doc-notes-input').addEventListener('input', (e) => {
+    document.getElementById('doc-notes-input')?.addEventListener('input', (e) => {
         appState.notesText = e.target.value;
         renderCleanDocument();
         saveState();
@@ -983,12 +1423,7 @@ function setupEventListeners() {
 
     // Universal Confirmation Modal OK Button
     document.getElementById('confirm-modal-ok-btn')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        const cb = activeConfirmCallback;
-        closeAppConfirm();
-        if (typeof cb === 'function') {
-            cb();
-        }
+        executeAppConfirmOk(e);
     });
 }
 
@@ -1035,6 +1470,7 @@ function exportToPdf() {
     cleanElement.style.width = '794px';
     cleanElement.style.maxWidth = '794px';
     cleanElement.style.minHeight = '1116px';
+    cleanElement.style.height = 'auto';
     cleanElement.style.boxSizing = 'border-box';
     cleanElement.style.padding = '32px 42px 24px 42px';
     cleanElement.style.margin = '0 auto';
@@ -1463,10 +1899,14 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
         docDate: appState.docDate || formatDateForGermanDisplay(new Date()),
         servicePeriod: appState.servicePeriod || getCurrentMonthGerman(),
         taxRate: appState.taxRate || 19,
+        clientType: appState.clientType || "privat",
+        workLocation: appState.workLocation || "",
         client: {
             name: appState.client.name || "Kunde ohne Name",
             street: appState.client.street || "",
-            zipCity: appState.client.zipCity || ""
+            zipCity: appState.client.zipCity || "",
+            clientType: appState.clientType || "privat",
+            workLocation: appState.workLocation || ""
         },
         items: JSON.parse(JSON.stringify(appState.items || [])),
         notesText: appState.notesText || "",
@@ -1600,7 +2040,7 @@ window.resetCurrentDoc = function() {
     showAppConfirm(
         "Möchten Sie alle Felder leeren und ein neues Dokument starten?",
         () => {
-            startCleanState();
+            startCleanState(true);
             renderAll();
             showToast("Formular geleert – Neuer Beleg angelegt.");
         },
@@ -1631,13 +2071,17 @@ window.editInvoiceInGenerator = function(invoiceId) {
     appState.activeArchiveId = invoice.id;
     appState.docType = invoice.docType || "rechnung";
     appState.docNumber = invoice.docNumber;
-    appState.docDate = invoice.docDate;
+    appState.docDate = normalizeToGermanDate(invoice.docDate);
     appState.servicePeriod = invoice.servicePeriod || "";
     appState.taxRate = invoice.taxRate || 19;
+    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || "privat";
+    appState.workLocation = invoice.workLocation || (invoice.client && invoice.client.workLocation) || "";
     appState.client = {
         name: invoice.client ? invoice.client.name : "",
         street: invoice.client ? invoice.client.street : "",
-        zipCity: invoice.client ? invoice.client.zipCity : ""
+        zipCity: invoice.client ? invoice.client.zipCity : "",
+        clientType: appState.clientType,
+        workLocation: appState.workLocation
     };
     appState.items = JSON.parse(JSON.stringify(invoice.items || []));
     appState.notesText = invoice.notesText || "";
@@ -1699,13 +2143,17 @@ window.editQuoteInGenerator = function(quoteId) {
     appState.activeArchiveId = quote.id;
     appState.docType = "angebot";
     appState.docNumber = quote.docNumber;
-    appState.docDate = quote.docDate;
+    appState.docDate = normalizeToGermanDate(quote.docDate);
     appState.servicePeriod = quote.servicePeriod || "Gültig 30 Tage ab Ausstellungsdatum";
     appState.taxRate = quote.taxRate || 19;
+    appState.clientType = quote.clientType || (quote.client && quote.client.clientType) || "privat";
+    appState.workLocation = quote.workLocation || (quote.client && quote.client.workLocation) || "";
     appState.client = {
         name: quote.client ? quote.client.name : "",
         street: quote.client ? quote.client.street : "",
-        zipCity: quote.client ? quote.client.zipCity : ""
+        zipCity: quote.client ? quote.client.zipCity : "",
+        clientType: appState.clientType,
+        workLocation: appState.workLocation
     };
     appState.items = JSON.parse(JSON.stringify(quote.items || []));
     appState.notesText = quote.notesText || "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
@@ -1824,7 +2272,20 @@ let overviewFilter = {
     periodType: 'all', // 'all' | 'monthly' | 'quarter' | 'yearly'
     subPeriod: 'all',
     sortBy: 'date-desc',
-    searchTerm: ''
+    searchTerm: '',
+    status: 'all' // 'all' | 'offen' | 'erinnerung' | 'mahnung' | 'bezahlt'
+};
+
+window.setOverviewStatusFilter = function(status) {
+    overviewFilter.status = status || 'all';
+    
+    // Update active class on filter buttons
+    const btns = document.querySelectorAll('#overview-status-filter-group .btn-status-filter');
+    btns.forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-status') === overviewFilter.status);
+    });
+
+    renderOverviewInvoices();
 };
 
 window.setOverviewPeriodFilter = function(type) {
@@ -1957,11 +2418,241 @@ function parseGermanDate(str) {
     return isNaN(d.getTime()) ? new Date() : d;
 }
 
+// ==========================================================================
+// PAYMENT STATUS & DUNNING CALCULATOR (7 TAGE ZAHLUNGSZIEL & 14 TAGE MAHNUNG)
+// ==========================================================================
+window.getInvoicePaymentStatus = function(inv) {
+    const isPaid = (inv.paymentStatus === 'bezahlt' || inv.status === 'bezahlt' || inv.isPaid === true);
+    if (isPaid) {
+        return {
+            status: 'bezahlt',
+            isPaid: true,
+            isOverdue: false,
+            overdueDays: 0,
+            daysPassed: 0,
+            stage: 0,
+            label: '✓ Bezahlt',
+            badgeClass: 'badge-status-paid',
+            subLabel: inv.paidAt ? `am ${inv.paidAt}` : 'Zahlung eingegangen'
+        };
+    }
+
+    const docDate = parseGermanDate(inv.docDate);
+    const now = new Date();
+    // Normalize to pure calendar days
+    const startOfDoc = new Date(docDate.getFullYear(), docDate.getMonth(), docDate.getDate()).getTime();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const diffMs = startOfToday - startOfDoc;
+    const daysPassed = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+    // User Rule: 7 Tage Zahlungsziel
+    const targetDays = 7;
+    const overdueDays = daysPassed - targetDays;
+
+    if (overdueDays > 7) {
+        // Unpaid after another 7 days (i.e. > 14 days total) -> Mahnung fällig!
+        return {
+            status: 'mahnung',
+            isPaid: false,
+            isOverdue: true,
+            overdueDays: overdueDays,
+            daysPassed: daysPassed,
+            stage: 2,
+            label: '🚨 Mahnung fällig',
+            badgeClass: 'badge-status-dunning',
+            subLabel: `${daysPassed} Tage her (${overdueDays} Tage im Verzug)`
+        };
+    } else if (overdueDays > 0) {
+        // Unpaid after 7 days (days 8 to 14) -> Zahlungserinnerung fällig!
+        return {
+            status: 'erinnerung',
+            isPaid: false,
+            isOverdue: true,
+            overdueDays: overdueDays,
+            daysPassed: daysPassed,
+            stage: 1,
+            label: '⚠️ Erinnerung fällig',
+            badgeClass: 'badge-status-reminder',
+            subLabel: `${daysPassed} Tage her (${overdueDays} Tag(e) im Verzug)`
+        };
+    } else {
+        // Within 7 days -> Offen
+        const remainingDays = targetDays - daysPassed;
+        return {
+            status: 'offen',
+            isPaid: false,
+            isOverdue: false,
+            overdueDays: 0,
+            daysPassed: daysPassed,
+            remainingDays: remainingDays,
+            stage: 0,
+            label: 'Offen',
+            badgeClass: 'badge-status-open',
+            subLabel: remainingDays === 0 ? 'Fällig heute (7 Tage)' : `Fällig in ${remainingDays} Tag(en)`
+        };
+    }
+};
+
+window.toggleInvoicePaidStatus = function(invId) {
+    const archive = getInvoicesArchive();
+    const inv = archive.find(i => String(i.id) === String(invId) || String(i.docNumber) === String(invId));
+    if (!inv) return;
+
+    const currentStatus = getInvoicePaymentStatus(inv);
+    if (currentStatus.isPaid) {
+        inv.paymentStatus = 'offen';
+        inv.status = 'ausgestellt';
+        inv.isPaid = false;
+        delete inv.paidAt;
+        showToast(`Rechnung ${inv.docNumber} als "Offen" markiert`);
+    } else {
+        inv.paymentStatus = 'bezahlt';
+        inv.status = 'bezahlt';
+        inv.isPaid = true;
+        inv.paidAt = new Date().toLocaleDateString('de-DE');
+        showToast(`Rechnung ${inv.docNumber} als bezahlt verbucht ✓`);
+    }
+
+    localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+    renderOverviewInvoices();
+};
+
 window.renderOverviewInvoices = function() {
     const listContainer = document.getElementById('overview-invoices-list');
     if (!listContainer) return;
 
     let archive = getInvoicesArchive().filter(inv => (inv.docType || 'rechnung') !== 'angebot');
+    const allInvoices = [...archive];
+
+    // Calculate global status counts across all invoices
+    const totalAllCount = allInvoices.length;
+    let countOpen = 0;
+    let countReminder = 0;
+    let countDunning = 0;
+    let countPaid = 0;
+    const reminderInvoices = [];
+    const dunningInvoices = [];
+
+    allInvoices.forEach(inv => {
+        const payInfo = getInvoicePaymentStatus(inv);
+        if (payInfo.status === 'bezahlt') {
+            countPaid++;
+        } else if (payInfo.status === 'mahnung') {
+            countDunning++;
+            dunningInvoices.push({ inv, payInfo });
+        } else if (payInfo.status === 'erinnerung') {
+            countReminder++;
+            reminderInvoices.push({ inv, payInfo });
+        } else {
+            countOpen++;
+        }
+    });
+
+    // Update status counter badges in the UI filter group
+    const cntAll = document.getElementById('status-count-all');
+    const cntOffen = document.getElementById('status-count-offen');
+    const cntErinnerung = document.getElementById('status-count-erinnerung');
+    const cntMahnung = document.getElementById('status-count-mahnung');
+    const cntBezahlt = document.getElementById('status-count-bezahlt');
+    if (cntAll) cntAll.textContent = String(totalAllCount);
+    if (cntOffen) cntOffen.textContent = String(countOpen);
+    if (cntErinnerung) cntErinnerung.textContent = String(countReminder);
+    if (cntMahnung) cntMahnung.textContent = String(countDunning);
+    if (cntBezahlt) cntBezahlt.textContent = String(countPaid);
+
+    // Render Overdue & Dunning Notification Banners
+    const alertBox = document.getElementById('overview-dunning-alerts');
+    if (alertBox) {
+        if (countDunning > 0 || countReminder > 0) {
+            let alertsHtml = '';
+
+            // Red Banner: Mahnung fällig (> 14 Tage überfällig)
+            if (countDunning > 0) {
+                const clientList = dunningInvoices.map(({ inv, payInfo }) => `
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #ffffff; border: 1.5px solid #fca5a5; border-radius: 8px; margin-top: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div>
+                            <strong style="color: #0f172a; font-size: 0.95rem;">${escapeHtml((inv.client && inv.client.name) || 'Kunde')}</strong>
+                            <span style="font-size: 0.82rem; color: #64748b; margin-left: 8px; font-family: monospace; font-weight: 700;">${escapeHtml(inv.docNumber)}</span>
+                            <span style="font-size: 0.76rem; color: #dc2626; font-weight: 800; margin-left: 8px; background: #fee2e2; padding: 3px 8px; border-radius: 4px;">${payInfo.overdueDays} Tage überfällig</span>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Ausgestellt am: ${escapeHtml(inv.docDate)}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #991b1b; font-size: 1.05rem; margin-right: 6px;">${formatCurrency(inv.totalGross)}</strong>
+                            <button type="button" class="btn-card-action action-dunning-btn" onclick="openDunningModal('${inv.id}', 2)" style="color: #dc2626; font-weight: 800; border-color: #fca5a5; background: #fff1f2; padding: 6px 12px; font-size: 0.82rem;">
+                                📄 Mahnung erstellen & drucken
+                            </button>
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5; padding: 6px 12px; font-size: 0.82rem;">
+                                ✓ Als bezahlt markieren
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                alertsHtml += `
+                    <div class="dunning-alert-card stage-2" style="margin-bottom: 12px;">
+                        <div class="dunning-alert-icon">🚨</div>
+                        <div style="flex: 1;">
+                            <div class="dunning-alert-title">
+                                Mahnung fällig: ${countDunning} Kunde(n) haben nach weiteren 7 Tagen nicht bezahlt (> 14 Tage überfällig)
+                            </div>
+                            <div class="dunning-alert-desc">
+                                Das 7-tägige Zahlungsziel sowie eine weitere Woche sind verstrichen. Drucken Sie jetzt direkt das offizielle Mahnschreiben aus oder versenden Sie es per E-Mail:
+                            </div>
+                            <div style="margin-top: 6px;">
+                                ${clientList}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Amber Banner: Zahlungserinnerung fällig (> 7 Tage Zahlungsziel)
+            if (countReminder > 0) {
+                const clientList = reminderInvoices.map(({ inv, payInfo }) => `
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 8px; margin-top: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div>
+                            <strong style="color: #0f172a; font-size: 0.95rem;">${escapeHtml((inv.client && inv.client.name) || 'Kunde')}</strong>
+                            <span style="font-size: 0.82rem; color: #64748b; margin-left: 8px; font-family: monospace; font-weight: 700;">${escapeHtml(inv.docNumber)}</span>
+                            <span style="font-size: 0.76rem; color: #d97706; font-weight: 800; margin-left: 8px; background: #fef3c7; padding: 3px 8px; border-radius: 4px;">${payInfo.overdueDays} Tage überfällig</span>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Ausgestellt am: ${escapeHtml(inv.docDate)}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #b45309; font-size: 1.05rem; margin-right: 6px;">${formatCurrency(inv.totalGross)}</strong>
+                            <button type="button" class="btn-card-action action-dunning-btn" onclick="openDunningModal('${inv.id}', 1)" style="color: #b45309; font-weight: 800; border-color: #fde68a; background: #fffbeb; padding: 6px 12px; font-size: 0.82rem;">
+                                📄 Zahlungserinnerung drucken
+                            </button>
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5; padding: 6px 12px; font-size: 0.82rem;">
+                                ✓ Als bezahlt markieren
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                alertsHtml += `
+                    <div class="dunning-alert-card stage-1">
+                        <div class="dunning-alert-icon">⚠️</div>
+                        <div style="flex: 1;">
+                            <div class="dunning-alert-title">
+                                Zahlungserinnerung fällig: ${countReminder} Rechnung(en) seit über 7 Tagen unbezahlt
+                            </div>
+                            <div class="dunning-alert-desc">
+                                Das 7-tägige Zahlungsziel ist überschritten. Bitte prüfen Sie den Zahlungseingang oder generieren Sie eine freundliche Zahlungserinnerung:
+                            </div>
+                            <div style="margin-top: 6px;">
+                                ${clientList}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            alertBox.innerHTML = alertsHtml;
+            alertBox.style.display = 'block';
+        } else {
+            alertBox.innerHTML = '';
+            alertBox.style.display = 'none';
+        }
+    }
 
     // 1. Filter by Period (all, monthly, quarter, yearly)
     if (overviewFilter.periodType === 'monthly' && overviewFilter.subPeriod !== 'all') {
@@ -1998,7 +2689,12 @@ window.renderOverviewInvoices = function() {
         });
     }
 
-    // 3. Sort
+    // 3. Filter by Payment Status (all, offen, erinnerung, mahnung, bezahlt)
+    if (overviewFilter.status && overviewFilter.status !== 'all') {
+        archive = archive.filter(inv => getInvoicePaymentStatus(inv).status === overviewFilter.status);
+    }
+
+    // 4. Sort
     archive.sort((a, b) => {
         const dateA = parseGermanDate(a.docDate).getTime();
         const dateB = parseGermanDate(b.docDate).getTime();
@@ -2021,7 +2717,7 @@ window.renderOverviewInvoices = function() {
         }
     });
 
-    // 4. Update KPI Ribbon
+    // 5. Update KPI Ribbon
     const totalGross = archive.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
     const totalNet = archive.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
     const totalTax = archive.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
@@ -2049,7 +2745,7 @@ window.renderOverviewInvoices = function() {
         }
     }
 
-    // 5. Render Invoices Cards
+    // 6. Render Invoices Cards
     if (archive.length === 0) {
         listContainer.innerHTML = `
             <div style="background: #ffffff; border-radius: 12px; padding: 48px 24px; text-align: center; border: 1px dashed #cbd5e1;">
@@ -2059,7 +2755,7 @@ window.renderOverviewInvoices = function() {
                     </svg>
                 </div>
                 <h3 style="color: #1e293b; font-size: 1.15rem; font-weight: 700; margin-bottom: 6px;">Keine Rechnungen gefunden</h3>
-                <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 18px;">Für den gewählten Zeitraum oder Filter liegen keine ausgestellten Belege vor.</p>
+                <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 18px;">Für den gewählten Zeitraum, Suchbegriff oder Status-Filter liegen keine Belege vor.</p>
                 <button type="button" class="btn-overview-action btn-create-invoice" onclick="createNewInvoiceInGenerator()">
                     Jetzt erste Rechnung schreiben
                 </button>
@@ -2070,6 +2766,7 @@ window.renderOverviewInvoices = function() {
 
     let cardsHtml = "";
     archive.forEach(inv => {
+        const payInfo = getInvoicePaymentStatus(inv);
         const clientName = (inv.client && inv.client.name) ? escapeHtml(inv.client.name) : "Kein Kundenname";
         const clientAddr = (inv.client && (inv.client.street || inv.client.zipCity))
             ? escapeHtml(`${inv.client.street ? inv.client.street + ', ' : ''}${inv.client.zipCity || ''}`)
@@ -2079,15 +2776,16 @@ window.renderOverviewInvoices = function() {
         const itemsSnippet = itemCount > 1 ? `${topItem} (+ ${itemCount - 1} weitere Positionen)` : (topItem || `${itemCount} Positionen`);
 
         cardsHtml += `
-            <div class="overview-invoice-card" id="card-${inv.id}">
-                <!-- Meta: Doc number & Date -->
+            <div class="overview-invoice-card ${payInfo.status === 'mahnung' ? 'is-overdue-mahnung' : ''}" id="card-${inv.id}">
+                <!-- Meta: Doc number & Date & Status -->
                 <div class="card-col-meta">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" class="overview-invoice-chk" value="${inv.id}" onchange="updateOverviewSelectedState()" style="width: 16px; height: 16px; accent-color: #0284c7; cursor: pointer;">
                         <span class="card-doc-num">${escapeHtml(inv.docNumber)}</span>
                     </div>
                     <span class="card-doc-date">Datum: ${escapeHtml(inv.docDate)}</span>
-                    <span class="card-status-badge">Ausgestellt</span>
+                    <span class="card-status-badge ${payInfo.badgeClass}">${payInfo.label}</span>
+                    <span style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">${payInfo.subLabel}</span>
                 </div>
 
                 <!-- Client Info & Items Preview -->
@@ -2103,8 +2801,24 @@ window.renderOverviewInvoices = function() {
                     <div class="card-net-tax">Netto: ${formatCurrency(inv.totalNet)} | 19% USt: ${formatCurrency(inv.totalTax)}</div>
                 </div>
 
-                <!-- Action Toolbar: Edit, Delete, PDF, XML -->
+                <!-- Action Toolbar: Edit, Delete, PDF, XML & Dunning -->
                 <div class="card-col-actions">
+                    ${!payInfo.isPaid ? `
+                        <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5;" title="Rechnung als bezahlt verbuchen">
+                            ✓ Bezahlt
+                        </button>
+                    ` : `
+                        <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #64748b;" title="Zurück auf 'Offen' setzen">
+                            ↩ Offen
+                        </button>
+                    `}
+
+                    ${(payInfo.status === 'erinnerung' || payInfo.status === 'mahnung') ? `
+                        <button type="button" class="btn-card-action action-dunning-btn" onclick="openDunningModal('${inv.id}', ${payInfo.stage})" style="color: #dc2626; font-weight: 800; border-color: #fca5a5; background: #fff1f2;" title="Mahnschreiben oder Zahlungserinnerung generieren">
+                            📄 Mahnschreiben
+                        </button>
+                    ` : ''}
+
                     <button type="button" class="btn-card-action btn-action-edit" onclick="editInvoiceInGenerator('${inv.id}')" title="Rechnung bearbeiten">
                         Bearbeiten
                     </button>
@@ -2124,6 +2838,411 @@ window.renderOverviewInvoices = function() {
 
     listContainer.innerHTML = cardsHtml;
     if (typeof updateOverviewSelectedState === 'function') updateOverviewSelectedState();
+};
+
+// ==========================================================================
+// MAHNWESEN & ZAHLUNGSERINNERUNGEN MODAL CONTROLLER
+// ==========================================================================
+let currentDunningInvoice = null;
+let currentDunningStage = 1; // 1: Zahlungserinnerung, 2: 1. Mahnung, 3: Letzte Mahnung
+let currentDunningFee = 0.00;
+let currentDunningDeadline = "";
+
+window.openDunningModal = function(invId, preferredStage) {
+    const archive = getInvoicesArchive();
+    const inv = archive.find(i => String(i.id) === String(invId) || String(i.docNumber) === String(invId));
+    if (!inv) {
+        showToast("Rechnung nicht gefunden");
+        return;
+    }
+
+    currentDunningInvoice = inv;
+    const payInfo = getInvoicePaymentStatus(inv);
+
+    if (preferredStage && (preferredStage === 1 || preferredStage === 2 || preferredStage === 3)) {
+        currentDunningStage = preferredStage;
+    } else if (payInfo.status === 'mahnung') {
+        currentDunningStage = 2;
+    } else {
+        currentDunningStage = 1;
+    }
+
+    // Default fee: 0€ for stage 1, 5.00€ for stage 2, 7.50€ for stage 3
+    currentDunningFee = currentDunningStage === 1 ? 0.00 : (currentDunningStage === 2 ? 5.00 : 7.50);
+
+    // Default deadline: 7 days from now
+    const now = new Date();
+    const deadlineDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+    const dStr = String(deadlineDate.getDate()).padStart(2, '0');
+    const mStr = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+    const yStr = deadlineDate.getFullYear();
+    currentDunningDeadline = `${dStr}.${mStr}.${yStr}`;
+
+    // Update left configuration panel
+    const docNumEl = document.getElementById('dunning-info-docnum');
+    const clientEl = document.getElementById('dunning-info-client');
+    const addressEl = document.getElementById('dunning-info-address');
+    const origAmountEl = document.getElementById('dunning-info-original-amount');
+    const docDateEl = document.getElementById('dunning-info-date');
+    const overdueDaysEl = document.getElementById('dunning-info-overdue-days');
+    const vwzEl = document.getElementById('dunning-bank-vwz');
+    const feeInput = document.getElementById('dunning-fee-input');
+    const deadlineInput = document.getElementById('dunning-deadline-input');
+
+    if (docNumEl) docNumEl.textContent = inv.docNumber;
+    if (clientEl) clientEl.textContent = (inv.client && inv.client.name) || 'Kundenname';
+    if (addressEl) addressEl.textContent = `${(inv.client && inv.client.street) || ''}, ${(inv.client && inv.client.zipCity) || ''}`.replace(/^, |, $/g, '');
+    if (origAmountEl) origAmountEl.textContent = formatCurrency(inv.totalGross);
+    if (docDateEl) docDateEl.textContent = inv.docDate || '01.01.2026';
+    if (overdueDaysEl) overdueDaysEl.textContent = `${payInfo.daysPassed} Tage her (${payInfo.overdueDays} Tage im Verzug)`;
+    if (vwzEl) vwzEl.textContent = `${inv.docNumber} Mahnung`;
+    if (feeInput) feeInput.value = currentDunningFee.toFixed(2);
+    if (deadlineInput) deadlineInput.value = currentDunningDeadline;
+
+    // Sync radio buttons
+    const radios = document.querySelectorAll('input[name="dunning-stage-radio"]');
+    radios.forEach(r => {
+        r.checked = (parseInt(r.value, 10) === currentDunningStage);
+    });
+    [1, 2, 3].forEach(s => {
+        const lbl = document.getElementById(`label-stage-${s}`);
+        if (lbl) lbl.classList.toggle('active', s === currentDunningStage);
+    });
+
+    renderDunningLetterPreview();
+
+    const modal = document.getElementById('dunning-modal');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeDunningModal = function() {
+    const modal = document.getElementById('dunning-modal');
+    if (modal) modal.style.display = 'none';
+    currentDunningInvoice = null;
+};
+
+window.handleDunningStageChange = function(stageNum) {
+    currentDunningStage = parseInt(stageNum, 10) || 1;
+    [1, 2, 3].forEach(s => {
+        const lbl = document.getElementById(`label-stage-${s}`);
+        if (lbl) lbl.classList.toggle('active', s === currentDunningStage);
+    });
+
+    // Auto-adjust default fee
+    if (currentDunningStage === 1) {
+        currentDunningFee = 0.00;
+    } else if (currentDunningStage === 2) {
+        currentDunningFee = 5.00;
+    } else {
+        currentDunningFee = 7.50;
+    }
+    const feeInput = document.getElementById('dunning-fee-input');
+    if (feeInput) feeInput.value = currentDunningFee.toFixed(2);
+
+    renderDunningLetterPreview();
+};
+
+window.handleDunningFeeChange = function(val) {
+    currentDunningFee = Math.max(0, parseFloat(val) || 0);
+    renderDunningLetterPreview();
+};
+
+window.handleDunningDeadlineChange = function(val) {
+    currentDunningDeadline = val || "";
+    renderDunningLetterPreview();
+};
+
+window.renderDunningLetterPreview = function() {
+    const previewContainer = document.getElementById('dunning-letter-preview');
+    if (!previewContainer || !currentDunningInvoice) return;
+
+    const inv = currentDunningInvoice;
+    const grossAmount = parseFloat(inv.totalGross) || 0;
+    const fee = currentDunningFee;
+    const totalClaim = grossAmount + fee;
+    const todayGerman = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const deadline = currentDunningDeadline || "sofort";
+
+    const clientName = (inv.client && inv.client.name) ? escapeHtml(inv.client.name) : "Sehr geehrte Damen und Herren";
+    const clientStreet = (inv.client && inv.client.street) ? escapeHtml(inv.client.street) : "";
+    const clientZipCity = (inv.client && inv.client.zipCity) ? escapeHtml(inv.client.zipCity) : "";
+
+    let subjectText = "";
+    let introText = "";
+    let deadlineClause = "";
+    let footerWarning = "";
+
+    if (currentDunningStage === 1) {
+        subjectText = `Zahlungserinnerung zu Rechnung Nr. ${escapeHtml(inv.docNumber)} vom ${escapeHtml(inv.docDate)}`;
+        introText = `sicherlich ist es bei der Vielzahl Ihrer täglichen Aufgaben Ihrer Aufmerksamkeit entgangen, dass die nachfolgend aufgeführte Rechnung aus unserem Hause mit einem Zahlungsziel von 7 Tagen am <strong>${escapeHtml(inv.docDate)}</strong> zur Zahlung fällig war. Bislang konnten wir leider noch keinen entsprechenden Zahlungseingang auf unserem Geschäftskonto feststellen.`;
+        deadlineClause = `Wir möchten Sie daher freundlich an den Ausgleich der offenen Forderung erinnern und bitten Sie, den Rechnungsbetrag ohne Abzug bis spätestens zum <strong>${escapeHtml(deadline)}</strong> auf unser unten angegebenes Bankkonto zu überweisen.`;
+        footerWarning = `Sollte sich diese Zahlungserinnerung mit Ihrer bereits veranlassten Überweisung überschnitten haben, bitten wir Sie, dieses Schreiben als gegenstandslos zu betrachten.`;
+    } else if (currentDunningStage === 2) {
+        subjectText = `1. Mahnung zu Rechnung Nr. ${escapeHtml(inv.docNumber)} vom ${escapeHtml(inv.docDate)}`;
+        introText = `auf unsere Zahlungserinnerung vom ${escapeHtml(inv.docDate)} konnten wir bis zum heutigen Tage keinen Zahlungseingang auf unserem Geschäftskonto verzeichnen. Gemäß unseren vereinbarten Zahlungsbedingungen mit einem 7-tägigen Zahlungsziel befinden Sie sich mit der Begleichung der Rechnung im Zahlungsverzug.`;
+        deadlineClause = `Wir fordern Sie hiermit auf, den offenen Gesamtforderungsbetrag inklusive der entstandenen Mahnauslagen bis spätestens zum <strong>${escapeHtml(deadline)}</strong> auf unser unten stehendes Bankkonto zu begleichen.`;
+        footerWarning = `Bitte beachten Sie: Nach fruchtlosem Ablauf dieser Nachfrist sehen wir uns gezwungen, das gerichtliche Mahnverfahren einzuleiten, wodurch weitere erhebliche Verzugszinsen und Rechtskosten für Sie entstehen würden.`;
+    } else {
+        subjectText = `Letzte Mahnung vor Einleitung des gerichtlichen Mahnverfahrens – Rechnung Nr. ${escapeHtml(inv.docNumber)}`;
+        introText = `trotz mehrfacher Zahlungserinnerungen und Mahnungen ist die nachfolgend aufgeführte Rechnung bis heute unbeglichen geblieben. Dies ist unsere letzte außergerichtliche Mahnung.`;
+        deadlineClause = `Wir fordern Sie letztmalig mit Nachdruck auf, den fälligen Gesamtbetrag bis spätestens zum <strong>${escapeHtml(deadline)}</strong> (Zahlungseingang auf unserem Bankkonto) auszugleichen.`;
+        footerWarning = `Lassen Sie auch diese letzte Frist verstreichen, werden wir den Vorgang unverzüglich an unsere Rechtsvertretung bzw. ein Inkassoinstitut zur gerichtlichen Titulierung (Mahnbescheid / Vollstreckungsbescheid) übergeben. Die dadurch entstehenden Verzugszinsen, Gerichtskosten und Rechtsanwaltsgebühren gehen in voller Höhe zu Ihren Lasten.`;
+    }
+
+    const html = `
+        <!-- Absender Header & Firmenlogo -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #059669; padding-bottom: 14px; margin-bottom: 22px;">
+            <div>
+                <div style="font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">
+                    PALNAU GARTENBAU GMBH
+                </div>
+                <div style="font-size: 11.5px; color: #475569; margin-top: 2px; font-weight: 600;">
+                    Fachbetrieb für Garten- & Landschaftsbau • Pflasterbau • Baumpflege
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                    Reihelberg 3 • 75210 Keltern-Dietlingen • Tel: 07231 466641
+                </div>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #475569; line-height: 1.5;">
+                <strong style="color: #059669;">Palnau Gartenbau GmbH</strong><br>
+                Geschäftsführer: Andrei Priala<br>
+                E-Mail: gartenbauu@gmail.com
+            </div>
+        </div>
+
+        <!-- Rücksendeangabe nach DIN 5008 & Empfängeradresse -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
+            <div>
+                <div style="font-size: 9.5px; color: #64748b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 8px; text-decoration: underline;">
+                    Palnau Gartenbau GmbH • Reihelberg 3 • 75210 Keltern
+                </div>
+                <div style="font-size: 14px; color: #0f172a; line-height: 1.5; min-height: 65px;">
+                    <strong>${clientName}</strong><br>
+                    ${clientStreet ? clientStreet + '<br>' : ''}
+                    ${clientZipCity ? clientZipCity : ''}
+                </div>
+            </div>
+            <div style="text-align: right; font-size: 12px; color: #334155; line-height: 1.6;">
+                <div><strong>Keltern-Dietlingen</strong>, den ${todayGerman}</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                    Beleg-Nr.: <strong style="color: #0f172a; font-family: monospace;">${escapeHtml(inv.docNumber)}</strong>
+                </div>
+                <div style="font-size: 11px; color: #64748b;">
+                    Rechnungsdatum: <strong>${escapeHtml(inv.docDate)}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Betreffzeile -->
+        <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 18px; line-height: 1.4;">
+            ${subjectText}
+        </div>
+
+        <!-- Brieftext -->
+        <div style="font-size: 13.5px; color: #1e293b; line-height: 1.7; margin-bottom: 22px;">
+            <p style="margin-bottom: 12px;">Sehr geehrte Damen und Herren,</p>
+            <p style="margin-bottom: 12px;">${introText}</p>
+            <p style="margin-bottom: 16px;">${deadlineClause}</p>
+        </div>
+
+        <!-- Aufstellung der Forderung -->
+        <div style="margin-bottom: 22px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                        <th style="padding: 8px 12px; text-align: left; font-weight: 800; color: #334155;">Forderungsposten</th>
+                        <th style="padding: 8px 12px; text-align: left; font-weight: 800; color: #334155;">Beleg / Details</th>
+                        <th style="padding: 8px 12px; text-align: right; font-weight: 800; color: #334155;">Betrag</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px 12px; font-weight: 600; color: #0f172a;">Rechnungsbetrag (Brutto)</td>
+                        <td style="padding: 10px 12px; color: #64748b;">Rechnung ${escapeHtml(inv.docNumber)} vom ${escapeHtml(inv.docDate)}</td>
+                        <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: #0f172a;">${formatCurrency(grossAmount)}</td>
+                    </tr>
+                    ${fee > 0 ? `
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="padding: 10px 12px; font-weight: 600; color: #b45309;">Mahnspesen / Verzugskosten</td>
+                            <td style="padding: 10px 12px; color: #64748b;">Aufwandspauschale Mahnstufe ${currentDunningStage}</td>
+                            <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: #b45309;">${formatCurrency(fee)}</td>
+                        </tr>
+                    ` : ''}
+                    <tr style="background: #f8fafc; border-top: 2px solid #0f172a;">
+                        <td colspan="2" style="padding: 12px; font-size: 14.5px; font-weight: 900; color: #0f172a; text-transform: uppercase;">
+                            Fälliger Gesamtforderungsbetrag:
+                        </td>
+                        <td style="padding: 12px; text-align: right; font-size: 16px; font-weight: 900; color: #059669;">
+                            ${formatCurrency(totalClaim)}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bankverbindung Highlight Box (Feststehend & Nicht editierbar) -->
+        <div style="background: #f8fafc; border: 2px solid #059669; border-radius: 8px; padding: 14px 18px; margin-bottom: 22px;">
+            <div style="font-size: 12px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">
+                Bankverbindung für Ihre Überweisung:
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <div style="font-size: 13.5px; font-weight: 800; color: #0f172a;">Sparkasse Pforzheim Calw</div>
+                    <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 3px; font-family: monospace; letter-spacing: 0.05em;">
+                        IBAN: DE66 6665 0085 0005 9928 34
+                    </div>
+                    <div style="font-size: 12px; color: #475569;">BIC: <strong>PFORDE66XXX</strong></div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 11.5px; color: #64748b;">Verwendungszweck (Wichtig):</div>
+                    <div style="font-size: 13.5px; font-weight: 800; color: #059669; font-family: monospace;">
+                        ${escapeHtml(inv.docNumber)} Mahnung
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schlusssatz & Grußformel -->
+        <div style="font-size: 13px; color: #334155; line-height: 1.6; margin-bottom: 30px;">
+            <p style="margin-bottom: 14px; font-style: italic; color: #64748b;">${footerWarning}</p>
+            <p style="margin-bottom: 26px;">Mit freundlichen Grüßen</p>
+            <div style="font-weight: 900; color: #0f172a; font-size: 14px;">Palnau Gartenbau GmbH</div>
+            <div style="font-size: 12px; color: #64748b;">Andrei Priala (Geschäftsführer)</div>
+        </div>
+
+        <!-- DIN Briefbogen Footer (Feststehend, 3 Spalten) -->
+        <div style="border-top: 1.5px solid #cbd5e1; padding-top: 12px; margin-top: auto; font-size: 10px; color: #64748b; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; line-height: 1.5;">
+            <div>
+                <strong style="color: #334155;">Bankverbindung:</strong><br>
+                Sparkasse Pforzheim Calw<br>
+                IBAN: DE66 6665 0085 0005 9928 34<br>
+                BIC: PFORDE66XXX
+            </div>
+            <div>
+                <strong style="color: #334155;">Steuerdaten:</strong><br>
+                Steuernummer: 41413-45017<br>
+                Finanzamt Mühlacker<br>
+                Amtsgericht Mannheim
+            </div>
+            <div>
+                <strong style="color: #334155;">Geschäftsleitung & Kontakt:</strong><br>
+                Geschäftsführer: Andrei Priala<br>
+                Tel: 07231 466641 | Mobil: 0176 12345678<br>
+                E-Mail: gartenbauu@gmail.com
+            </div>
+        </div>
+    `;
+
+    previewContainer.innerHTML = html;
+};
+
+window.printDunningLetter = function() {
+    const preview = document.getElementById('dunning-letter-preview');
+    const printContainer = document.getElementById('dunning-print-container');
+    if (!preview || !printContainer) return;
+
+    printContainer.innerHTML = preview.innerHTML;
+    printContainer.style.display = 'block';
+    document.body.classList.add('printing-dunning');
+
+    window.print();
+
+    setTimeout(() => {
+        document.body.classList.remove('printing-dunning');
+        printContainer.style.display = 'none';
+        printContainer.innerHTML = '';
+    }, 1000);
+};
+
+window.downloadDunningLetterHtml = function() {
+    const preview = document.getElementById('dunning-letter-preview');
+    if (!preview || !currentDunningInvoice) return;
+
+    const stageNames = { 1: "Zahlungserinnerung", 2: "1_Mahnung", 3: "Letzte_Mahnung" };
+    const fileName = `${stageNames[currentDunningStage]}_${currentDunningInvoice.docNumber}.html`;
+
+    const fullHtml = `<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>${stageNames[currentDunningStage]} - ${currentDunningInvoice.docNumber}</title>
+    <style>
+        @page { size: A4 portrait; margin: 15mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #1e293b; background: #ffffff; margin: 0; padding: 20px; }
+        @media print { body { padding: 0; } }
+    </style>
+</head>
+<body>
+    ${preview.innerHTML}
+</body>
+</html>`;
+
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Dokument heruntergeladen: ${fileName}`);
+};
+
+window.copyDunningEmailText = function() {
+    if (!currentDunningInvoice) return;
+    const inv = currentDunningInvoice;
+    const clientName = (inv.client && inv.client.name) || "Kunde";
+    const gross = formatCurrency(inv.totalGross);
+    const fee = currentDunningFee;
+    const total = formatCurrency(parseFloat(inv.totalGross || 0) + fee);
+    const deadline = currentDunningDeadline || "7 Tage";
+
+    const stageTitle = currentDunningStage === 1 
+        ? `Zahlungserinnerung zu Rechnung ${inv.docNumber}` 
+        : (currentDunningStage === 2 ? `1. Mahnung zu Rechnung ${inv.docNumber}` : `Letzte Mahnung vor Inkasso - Rechnung ${inv.docNumber}`);
+
+    const emailText = `Betreff: ${stageTitle} - Palnau Gartenbau GmbH
+
+Sehr geehrte Damen und Herren,
+sehr geehrte(r) ${clientName},
+
+hiermit möchten wir Sie an die Begleichung der Rechnung ${inv.docNumber} vom ${inv.docDate} erinnern.
+
+Rechnungsbetrag (Brutto): ${gross}
+${fee > 0 ? `Mahngebühr: ${formatCurrency(fee)}\n` : ''}Zu zahlender Gesamtbetrag: ${total}
+Zahlungsfrist: bis zum ${deadline}
+
+Bankverbindung für die Überweisung:
+Bank: Sparkasse Pforzheim Calw
+IBAN: DE66 6665 0085 0005 9928 34
+BIC: PFORDE66XXX
+Verwendungszweck: ${inv.docNumber} Mahnung
+
+Bei Rückfragen stehen wir Ihnen gerne unter 07231 466641 zur Verfügung.
+Sollte sich diese Nachricht mit Ihrer Zahlung überschnitten haben, bitten wir Sie, diese zu ignorieren.
+
+Mit freundlichen Grüßen
+Palnau Gartenbau GmbH
+Reihelberg 3, 75210 Keltern
+Geschäftsführer: Andrei Priala
+Tel: 07231 466641 | E-Mail: gartenbauu@gmail.com`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(emailText).then(() => {
+            showToast("E-Mail-Vorlage in Zwischenablage kopiert ✓");
+        }).catch(() => {
+            prompt("Kopieren Sie den E-Mail-Text:", emailText);
+        });
+    } else {
+        prompt("Kopieren Sie den E-Mail-Text:", emailText);
+    }
+};
+
+window.markInvoiceAsPaidFromDunning = function() {
+    if (!currentDunningInvoice) return;
+    toggleInvoicePaidStatus(currentDunningInvoice.id);
+    closeDunningModal();
 };
 
 window.toggleSelectAllOverviewInvoices = function(forceChecked) {
@@ -2228,6 +3347,29 @@ let quotesFilter = {
 
 let activeQuoteForConversion = null;
 
+// Helper to normalize any date input (DD.MM.YYYY, YYYY-MM-DD, ISO or timestamp) to DD.MM.YYYY
+function normalizeToGermanDate(dateStr) {
+    if (!dateStr) return formatDateForGermanDisplay(new Date());
+    const str = String(dateStr).trim();
+    // Pattern DD.MM.YYYY
+    const dmyMatch = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (dmyMatch) {
+        return `${dmyMatch[1].padStart(2, '0')}.${dmyMatch[2].padStart(2, '0')}.${dmyMatch[3]}`;
+    }
+    // Pattern YYYY-MM-DD
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+        return `${isoMatch[3].padStart(2, '0')}.${isoMatch[2].padStart(2, '0')}.${isoMatch[1]}`;
+    }
+    // Fallback Date parser
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+        return formatDateForGermanDisplay(d);
+    }
+    return str;
+}
+window.normalizeToGermanDate = normalizeToGermanDate;
+
 // Helper to format ISO date (YYYY-MM-DD) to German string (DD.MM.YYYY) without timezone shift
 function formatIsoToGerman(isoStr) {
     if (!isoStr) return "";
@@ -2235,8 +3377,9 @@ function formatIsoToGerman(isoStr) {
     if (parts.length === 3) {
         return `${parts[2].padStart(2, '0')}.${parts[1].padStart(2, '0')}.${parts[0]}`;
     }
-    return formatDateForGermanDisplay(isoStr);
+    return normalizeToGermanDate(isoStr);
 }
+window.formatIsoToGerman = formatIsoToGerman;
 
 // Helper to format German string (DD.MM.YYYY) to ISO (YYYY-MM-DD)
 function formatGermanToIso(germanStr) {
@@ -2247,6 +3390,60 @@ function formatGermanToIso(germanStr) {
     }
     return "";
 }
+window.formatGermanToIso = formatGermanToIso;
+
+// Generator Meta Date handlers: Keep text input editable and synced with native calendar
+window.handleDocDateChange = function(val) {
+    const norm = normalizeToGermanDate(val);
+    appState.docDate = norm;
+    const dateInput = document.getElementById('doc-meta-date');
+    if (dateInput && dateInput.value !== norm) {
+        dateInput.value = norm;
+    }
+    renderCleanDocument();
+    saveState();
+};
+
+window.openMetaDatePicker = function() {
+    const picker = document.getElementById('doc-meta-date-picker');
+    if (!picker) return;
+    if (appState.docDate) {
+        const iso = formatGermanToIso(appState.docDate);
+        if (iso) picker.value = iso;
+    }
+    if (typeof picker.showPicker === 'function') {
+        picker.showPicker();
+    } else {
+        picker.click();
+    }
+};
+
+window.syncMetaDatePicker = function(isoVal) {
+    if (!isoVal) return;
+    const german = formatIsoToGerman(isoVal);
+    appState.docDate = german;
+    const dateInput = document.getElementById('doc-meta-date');
+    if (dateInput) dateInput.value = german;
+    renderCleanDocument();
+    saveState();
+};
+
+// Client Type Switcher & Work Location handlers
+window.setClientType = function(type) {
+    appState.clientType = (type === 'firma') ? 'firma' : 'privat';
+    if (!appState.client) appState.client = {};
+    appState.client.clientType = appState.clientType;
+    renderAll();
+    saveState();
+    showToast(appState.clientType === 'firma' ? "Kundentyp: Firma / Gewerbe gewählt" : "Kundentyp: Privatperson gewählt");
+};
+
+window.handleWorkLocationChange = function(val) {
+    appState.workLocation = val;
+    if (appState.client) appState.client.workLocation = val;
+    renderCleanDocument();
+    saveState();
+};
 
 window.setQuotesStatusFilter = function(status) {
     quotesFilter.status = status;
@@ -2659,7 +3856,13 @@ window.renderQuotesOverview = function() {
 // ==========================================================================
 window.openConvertToInvoiceModal = function(quoteId) {
     let quote = null;
-    if (quoteId === 'current') {
+    const archive = getInvoicesArchive();
+
+    if (quoteId && quoteId !== 'current') {
+        quote = archive.find(i => String(i.id) === String(quoteId) || String(i.docNumber) === String(quoteId));
+    }
+
+    if (!quote && (quoteId === 'current' || appState.docType === 'angebot')) {
         const totals = calculateTotals();
         quote = {
             id: appState.activeArchiveId || ('ang-temp-' + Date.now()),
@@ -2668,6 +3871,8 @@ window.openConvertToInvoiceModal = function(quoteId) {
             docDate: appState.docDate,
             servicePeriod: appState.servicePeriod,
             taxRate: appState.taxRate,
+            clientType: appState.clientType || 'privat',
+            workLocation: appState.workLocation || '',
             client: { ...appState.client },
             items: JSON.parse(JSON.stringify(appState.items || [])),
             notesText: appState.notesText,
@@ -2675,9 +3880,6 @@ window.openConvertToInvoiceModal = function(quoteId) {
             totalTax: totals.taxAmount,
             totalGross: totals.grossTotal
         };
-    } else {
-        const archive = getInvoicesArchive();
-        quote = archive.find(i => String(i.id) === String(quoteId));
     }
 
     if (!quote) {
@@ -2696,15 +3898,13 @@ window.openConvertToInvoiceModal = function(quoteId) {
     if (metaEl) metaEl.textContent = `${quote.docNumber || 'Angebot'} • Angebotsdatum: ${quote.docDate || '-'}`;
     if (amountEl) amountEl.textContent = formatCurrency(quote.totalGross || 0);
 
-    // Prompt for new invoice date (Default: Today in YYYY-MM-DD)
-    const today = new Date();
-    const todayIso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-    
+    // Prompt for new invoice date (Default: Today in DD.MM.YYYY German format, fully editable)
+    const todayGerman = formatDateForGermanDisplay(new Date());
     const dateInput = document.getElementById('convert-invoice-date');
     if (dateInput) {
-        dateInput.value = todayIso;
-        updateConvertDateDisplay(todayIso);
+        dateInput.value = todayGerman;
     }
+    updateConvertDateDisplay(todayGerman);
 
     // Pre-fill next invoice document number
     const numInput = document.getElementById('convert-invoice-num');
@@ -2739,11 +3939,36 @@ window.closeConvertToInvoiceModal = function() {
     activeQuoteForConversion = null;
 };
 
-window.updateConvertDateDisplay = function(isoVal) {
+window.updateConvertDateDisplay = function(val) {
     const display = document.getElementById('convert-date-german-display');
     if (display) {
-        display.textContent = formatIsoToGerman(isoVal);
+        display.textContent = normalizeToGermanDate(val);
     }
+};
+
+window.openConvertNativeDatePicker = function() {
+    const picker = document.getElementById('convert-native-date-picker');
+    if (!picker) return;
+    const curr = document.getElementById('convert-invoice-date')?.value;
+    if (curr) {
+        const iso = formatGermanToIso(curr);
+        if (iso) picker.value = iso;
+    }
+    if (typeof picker.showPicker === 'function') {
+        picker.showPicker();
+    } else {
+        picker.click();
+    }
+};
+
+window.syncNativeDateToConvertInput = function(isoVal) {
+    if (!isoVal) return;
+    const german = formatIsoToGerman(isoVal);
+    const dateInput = document.getElementById('convert-invoice-date');
+    if (dateInput) {
+        dateInput.value = german;
+    }
+    updateConvertDateDisplay(german);
 };
 
 window.setConvertDatePreset = function(preset) {
@@ -2759,18 +3984,16 @@ window.setConvertDatePreset = function(preset) {
         d.setDate(1);
     } else if (preset === 'sameAsQuote') {
         if (activeQuoteForConversion && activeQuoteForConversion.docDate) {
-            const iso = formatGermanToIso(activeQuoteForConversion.docDate);
-            if (iso) {
-                dateInput.value = iso;
-                updateConvertDateDisplay(iso);
-                return;
-            }
+            const quoteDate = normalizeToGermanDate(activeQuoteForConversion.docDate);
+            dateInput.value = quoteDate;
+            updateConvertDateDisplay(quoteDate);
+            return;
         }
     }
 
-    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    dateInput.value = iso;
-    updateConvertDateDisplay(iso);
+    const german = formatDateForGermanDisplay(d);
+    dateInput.value = german;
+    updateConvertDateDisplay(german);
 };
 
 window.generateNewConvertInvoiceNum = function() {
@@ -2794,14 +4017,14 @@ window.submitConvertToInvoice = function() {
     const optAccepted = document.getElementById('convert-opt-mark-accepted');
     const optSwitch = document.getElementById('convert-opt-switch-view');
 
-    const isoDate = dateInput ? dateInput.value : "";
-    if (!isoDate) {
-        showToast("Bitte wählen Sie ein Rechnungsdatum aus.");
+    const inputDate = dateInput ? dateInput.value.trim() : "";
+    if (!inputDate) {
+        showToast("Bitte geben Sie ein Rechnungsdatum ein (z. B. " + formatDateForGermanDisplay(new Date()) + ").");
         if (dateInput) dateInput.focus();
         return;
     }
 
-    const invoiceDateGerman = formatIsoToGerman(isoDate);
+    const invoiceDateGerman = normalizeToGermanDate(inputDate);
     const invoiceNumber = (numInput && numInput.value.trim()) ? numInput.value.trim() : generateDocNumber("rechnung");
     const servicePeriod = (periodInput && periodInput.value.trim()) ? periodInput.value.trim() : getCurrentMonthGerman();
     const withReference = optRef ? optRef.checked : true;
@@ -2816,34 +4039,43 @@ window.submitConvertToInvoice = function() {
     newInvoice.docDate = invoiceDateGerman; // Crucial user requirement: distinct invoice date
     newInvoice.servicePeriod = servicePeriod;
     newInvoice.status = 'ausgestellt';
+    newInvoice.clientType = activeQuoteForConversion.clientType || 'privat';
+    newInvoice.workLocation = activeQuoteForConversion.workLocation || '';
     newInvoice.convertedFromQuoteId = activeQuoteForConversion.id;
     newInvoice.convertedFromQuoteNumber = activeQuoteForConversion.docNumber;
     newInvoice.convertedAt = new Date().toISOString();
 
     if (withReference) {
         const refText = `Ausgeführt und abgerechnet gemäß Angebot ${activeQuoteForConversion.docNumber} vom ${activeQuoteForConversion.docDate || ''}.\n`;
-        newInvoice.notesText = refText + (newInvoice.notesText || "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.");
+        newInvoice.notesText = refText + (newInvoice.notesText || "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf unser unten genanntes Bankkonto unter Angabe der Rechnungsnummer als Verwendungszweck.");
     } else if (!newInvoice.notesText || newInvoice.notesText.includes('freibleibend')) {
-        newInvoice.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 14 Tagen auf das unten genannte Bankkonto.";
+        newInvoice.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf unser unten genanntes Bankkonto unter Angabe der Rechnungsnummer als Verwendungszweck.";
     }
 
     const archive = getInvoicesArchive();
 
-    // If marked as accepted, update the original quote status in archive
-    if (markAsAccepted) {
-        const qIdx = archive.findIndex(i => String(i.id) === String(activeQuoteForConversion.id));
-        if (qIdx !== -1) {
-            archive[qIdx].quoteStatus = 'angenommen';
-            archive[qIdx].convertedInvoiceId = newInvoice.id;
-            archive[qIdx].convertedInvoiceNumber = newInvoice.docNumber;
-            archive[qIdx].convertedAt = new Date().toISOString();
-        }
+    // User requirement: When an offer is converted to an invoice, delete the original offer from the archive
+    const qIdx = archive.findIndex(i => String(i.id) === String(activeQuoteForConversion.id) || String(i.docNumber) === String(activeQuoteForConversion.docNumber));
+    if (qIdx !== -1) {
+        archive.splice(qIdx, 1);
     }
 
     // Add new invoice to archive
     archive.unshift(newInvoice);
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
     localStorage.setItem('palnau_workspace_initialized', 'true');
+
+    // If editor currently has the converted quote open, update editor to the new invoice
+    if (appState.activeArchiveId === activeQuoteForConversion.id || appState.docNumber === activeQuoteForConversion.docNumber) {
+        appState.activeArchiveId = newInvoice.id;
+        appState.docType = 'rechnung';
+        appState.docNumber = newInvoice.docNumber;
+        appState.docDate = newInvoice.docDate;
+        appState.servicePeriod = newInvoice.servicePeriod;
+        appState.notesText = newInvoice.notesText;
+        saveState();
+        if (typeof renderDocument === 'function') renderDocument();
+    }
 
     if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
         window.PalnauCloudSync.pushLocalToCloud();
@@ -3336,43 +4568,10 @@ window.adjustCatalogCardQty = function(itemId, delta) {
 };
 
 window.addCatalogItemToInvoice = function(itemId) {
-    let items = (typeof SERVICES_CATALOG !== 'undefined') ? JSON.parse(JSON.stringify(SERVICES_CATALOG)) : [];
-    const customItemsRaw = localStorage.getItem('palnau_custom_catalog');
-    if (customItemsRaw) {
-        try {
-            const customItems = JSON.parse(customItemsRaw);
-            if (Array.isArray(customItems)) items = [...customItems, ...items];
-        } catch (e) {}
-    }
-
-    const service = items.find(i => i.id === itemId);
-    if (!service) {
-        showToast("Leistung nicht gefunden.");
-        return;
-    }
-
     const qtyInput = document.getElementById(`qty-${itemId}`);
     const qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
-
-    // Add to appState.items
-    const newItem = {
-        id: "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
-        title: service.name,
-        description: service.description || "",
-        unit: service.standardUnit || "Std",
-        quantity: qty,
-        unitPrice: service.unitPrice,
-        total: qty * service.unitPrice
-    };
-
-    if (!Array.isArray(appState.items)) {
-        appState.items = [];
-    }
-    appState.items.push(newItem);
-    saveState();
+    addCatalogServiceToDoc(itemId, qty);
     updateAllAppStatesAndBadges();
-
-    showToast(`✓ "${service.name}" (${qty}x) zur Rechnung hinzugefügt!`);
 };
 
 window.toggleCustomServiceForm = function() {
