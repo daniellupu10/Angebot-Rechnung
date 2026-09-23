@@ -10,6 +10,13 @@
     <link rel="stylesheet" href="css/style.css">
     <!-- html2pdf.js for client-side clean PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- JSZip for multi-invoice PDF archive export -->
+    <script src="js/jszip.min.js"></script>
+    <script>
+        if (typeof JSZip === 'undefined') {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/script>');
+        }
+    </script>
 </head>
 <body>
 
@@ -329,6 +336,22 @@
 
             <!-- Filter & Sorting Command Center -->
             <div class="neu-controls-bar">
+                <!-- View & Grouping Mode Segment: Monatlich / Quartalsweise / Liste -->
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">Ansicht:</span>
+                    <div class="neu-filter-segmented" id="overview-grouping-mode-segmented">
+                        <button type="button" class="neu-filter-pill active" id="pill-mode-monthly" onclick="setOverviewGroupingMode('monthly')" title="Rechnungen monatlich gruppiert anzeigen">
+                            📅 Monatlich
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-mode-quarter" onclick="setOverviewGroupingMode('quarter')" title="Rechnungen quartalsweise gruppiert anzeigen">
+                            📊 Quartalsweise
+                        </button>
+                        <button type="button" class="neu-filter-pill" id="pill-mode-list" onclick="setOverviewGroupingMode('list')" title="Fortlaufende Belegliste (Alle)">
+                            📋 Liste (Alle)
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Period Grouping Selector -->
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">Zeitraum:</span>
@@ -396,16 +419,33 @@
                 </div>
             </div>
 
-            <!-- Bulk Action Toolbar (Select All for Invoices) -->
+            <!-- Bulk Action Toolbar (Select All & Batch PDF-Archive Export for Invoices) -->
             <div id="overview-bulk-actions-bar" class="overview-bulk-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-                <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                     <label class="overview-select-all-label" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: #334155; cursor: pointer; user-select: none;">
                         <input type="checkbox" id="overview-select-all-chk" style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;" onchange="toggleSelectAllOverviewInvoices(this.checked)">
                         <span id="overview-select-all-label-text">Alle auswählen</span>
                     </label>
-                    <span id="overview-selected-counter" style="font-size: 0.8rem; color: #0284c7; font-weight: 700; display: none;">0 Belege ausgewählt</span>
+                    <button type="button" class="neu-btn" id="btn-select-current-month" onclick="selectCurrentMonthInvoices()" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 7px; color: #0369a1; background: #f0f9ff; border: 1px solid #bae6fd; font-weight: 600; cursor: pointer;">
+                        📅 Aktuellen Monat auswählen
+                    </button>
+                    <span id="overview-selected-counter" style="font-size: 0.82rem; color: #0284c7; font-weight: 700; display: none;">0 Belege ausgewählt</span>
                 </div>
-                <div id="overview-selected-actions" style="display: none; align-items: center; gap: 8px;">
+                <div id="overview-selected-actions" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="neu-btn" id="btn-bulk-mark-paid" onclick="markSelectedInvoicesAsPaid()" style="font-size: 0.82rem; padding: 7px 16px; background: #f0fdf4; color: #15803d; border: 1.5px solid #86efac; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; transition: all 0.15s ease;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span id="btn-bulk-mark-paid-text">Ausgewählte als bezahlt markieren</span>
+                    </button>
+                    <button type="button" class="neu-btn" onclick="exportSelectedInvoicesArchive()" style="font-size: 0.82rem; padding: 7px 16px; background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; transition: all 0.15s ease;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span id="btn-export-archive-text">Ausgewählte als PDF-Archiv (.zip) exportieren</span>
+                    </button>
                     <button type="button" class="neu-btn" onclick="deleteSelectedOverviewInvoices()" style="font-size: 0.8rem; padding: 6px 14px; background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="3 6 5 6 21 6"></polyline>
@@ -1936,8 +1976,11 @@
                         <button type="button" class="neu-btn" onclick="copyDunningEmailText()" style="justify-content: center; padding: 8px 14px; font-weight: 600;">
                             ✉️ Text für Kunden-E-Mail kopieren
                         </button>
-                        <button type="button" class="neu-btn" onclick="markInvoiceAsPaidFromDunning()" style="justify-content: center; padding: 7px 12px; font-size: 0.82rem; background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-weight: 700;">
-                            ✓ Als jetzt bezahlt markieren
+                        <button type="button" class="neu-btn" onclick="markInvoiceAsPaidFromDunning()" style="justify-content: center; padding: 10px 14px; font-size: 0.88rem; background: #ecfdf5; color: #047857; border: 1.5px solid #059669; font-weight: 800; border-radius: 8px; box-shadow: 0 1px 4px rgba(5,150,105,0.15); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            ✓ Zahlung eingegangen – Mahnung aufheben & bezahlt verbuchen
                         </button>
                     </div>
                 </div>
@@ -1994,6 +2037,95 @@
                 <button type="button" class="neu-btn neu-btn-danger" id="confirm-modal-ok-btn" onclick="executeAppConfirmOk(event)" style="padding: 8px 20px; font-weight: 700; font-size: 0.9rem; background: #dc2626; color: #ffffff; border-color: #b91c1c;">
                     Unwiderruflich löschen
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         BATCH PDF-ARCHIV EXPORT MODAL (.ZIP MIT ALLEN BELEGEN)
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="export-archive-modal" style="display: none; z-index: 10060;">
+        <div class="catalog-modal-window" style="max-width: 540px; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(226, 232, 240, 0.9); box-shadow: 0 20px 45px rgba(0,0,0,0.22);">
+            <!-- Modal Header -->
+            <div class="modal-header-bar" style="background: #ffffff; padding: 18px 22px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 10px; background: #ecfdf5; color: #059669; flex-shrink: 0;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </span>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;" id="export-archive-modal-title">PDF-Archiv exportieren</h2>
+                        <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;" id="export-archive-modal-subtitle">Palnau Gartenbau GmbH • Belegarchiv</div>
+                    </div>
+                </div>
+                <button type="button" class="neu-btn" onclick="closeExportArchiveModal()" id="export-archive-close-btn" style="padding: 5px 10px; font-size: 0.85rem;" title="Schließen">✕</button>
+            </div>
+            
+            <div style="padding: 22px 24px; background: #f8fafc;">
+                <!-- Live Progress View -->
+                <div id="export-archive-progress-view">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                        <span style="font-size: 0.86rem; font-weight: 700; color: #1e293b;" id="export-archive-step-text">Rechnungen werden als druckfertige DIN A4 PDFs generiert...</span>
+                        <span style="font-size: 0.88rem; font-weight: 800; color: #059669;" id="export-archive-percent">0%</span>
+                    </div>
+                    
+                    <!-- Modern Animated Progress Bar -->
+                    <div style="width: 100%; height: 12px; background: #e2e8f0; border-radius: 9999px; overflow: hidden; margin-bottom: 12px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);">
+                        <div id="export-archive-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #059669, #10b981); transition: width 0.25s ease; border-radius: 9999px;"></div>
+                    </div>
+
+                    <!-- Current Invoice Processing Label -->
+                    <div style="font-size: 0.8rem; color: #475569; margin-bottom: 14px; display: flex; align-items: center; gap: 6px;">
+                        <span class="spinner-small" id="export-archive-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid #cbd5e1; border-top-color: #059669; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                        <span id="export-archive-status-detail">Vorbereitung des Exports...</span>
+                    </div>
+                    
+                    <!-- Real-time Invoices Output List -->
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">Verarbeitete Belege:</div>
+                    <div id="export-archive-items-log" style="max-height: 150px; overflow-y: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 6px;">
+                        <!-- populated in JS -->
+                    </div>
+                </div>
+
+                <!-- Success Completed View -->
+                <div id="export-archive-success-view" style="display: none; text-align: center; padding: 12px 6px;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto;">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </div>
+                    <h3 style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;" id="export-archive-success-title">Archiv erfolgreich erstellt!</h3>
+                    <p style="font-size: 0.88rem; color: #475569; margin: 0 0 16px 0; line-height: 1.5;" id="export-archive-success-desc">
+                        Alle Rechnungen wurden als hochauflösende DIN A4 PDFs exportiert und im ZIP-Archiv verpackt.
+                    </p>
+                    
+                    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 16px; font-size: 0.85rem; text-align: left; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="color: #059669;">📦</span>
+                            <span id="export-archive-filename-display">Palnau_Rechnungen_Archiv.zip</span>
+                        </div>
+                        <div id="export-archive-stats-display" style="color: #64748b; font-size: 0.8rem; line-height: 1.45;">
+                            Enthält alle Belege als druckfertige PDFs + Steuerberater/Excel-Rechnungsjournal (.csv)
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button type="button" class="neu-btn" onclick="closeExportArchiveModal()" style="padding: 9px 22px; font-weight: 600; font-size: 0.88rem; border-radius: 8px;">
+                            Fertig / Schließen
+                        </button>
+                        <button type="button" class="neu-btn neu-btn-primary" id="btn-redownload-archive" onclick="triggerRedownloadArchive()" style="padding: 9px 22px; font-weight: 700; font-size: 0.88rem; background: #059669; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Archiv erneut herunterladen
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

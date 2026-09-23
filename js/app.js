@@ -2271,9 +2271,23 @@ function updateLauncherBadgeCount() {
 let overviewFilter = {
     periodType: 'all', // 'all' | 'monthly' | 'quarter' | 'yearly'
     subPeriod: 'all',
+    groupingMode: 'monthly', // 'monthly' | 'quarter' | 'list'
     sortBy: 'date-desc',
     searchTerm: '',
     status: 'all' // 'all' | 'offen' | 'erinnerung' | 'mahnung' | 'bezahlt'
+};
+
+window.setOverviewGroupingMode = function(mode) {
+    overviewFilter.groupingMode = mode || 'monthly';
+    
+    // Update active class on view mode pills
+    const modes = ['monthly', 'quarter', 'list'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`pill-mode-${m}`);
+        if (btn) btn.classList.toggle('active', m === overviewFilter.groupingMode);
+    });
+
+    renderOverviewInvoices();
 };
 
 window.setOverviewStatusFilter = function(status) {
@@ -2290,6 +2304,19 @@ window.setOverviewStatusFilter = function(status) {
 
 window.setOverviewPeriodFilter = function(type) {
     overviewFilter.periodType = type;
+
+    // Automatically synchronize grouping mode with period filter
+    if (type === 'monthly') {
+        overviewFilter.groupingMode = 'monthly';
+    } else if (type === 'quarter') {
+        overviewFilter.groupingMode = 'quarter';
+    }
+
+    const modes = ['monthly', 'quarter', 'list'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`pill-mode-${m}`);
+        if (btn) btn.classList.toggle('active', m === overviewFilter.groupingMode);
+    });
 
     // Update pill states
     const pills = ['all', 'monthly', 'quarter', 'yearly'];
@@ -2424,6 +2451,10 @@ function parseGermanDate(str) {
 window.getInvoicePaymentStatus = function(inv) {
     const isPaid = (inv.paymentStatus === 'bezahlt' || inv.status === 'bezahlt' || inv.isPaid === true);
     if (isPaid) {
+        let subText = inv.paidAt ? `am ${inv.paidAt}` : 'Zahlung eingegangen';
+        if (inv.wasMahnungResolved) {
+            subText = inv.paidAt ? `Zahlung nach Mahnung am ${inv.paidAt}` : 'Zahlung nach Mahnung eingegangen';
+        }
         return {
             status: 'bezahlt',
             isPaid: true,
@@ -2433,7 +2464,7 @@ window.getInvoicePaymentStatus = function(inv) {
             stage: 0,
             label: '✓ Bezahlt',
             badgeClass: 'badge-status-paid',
-            subLabel: inv.paidAt ? `am ${inv.paidAt}` : 'Zahlung eingegangen'
+            subLabel: subText
         };
     }
 
@@ -2493,24 +2524,39 @@ window.getInvoicePaymentStatus = function(inv) {
     }
 };
 
-window.toggleInvoicePaidStatus = function(invId) {
+window.toggleInvoicePaidStatus = function(invId, explicitPaid) {
     const archive = getInvoicesArchive();
     const inv = archive.find(i => String(i.id) === String(invId) || String(i.docNumber) === String(invId));
     if (!inv) return;
 
     const currentStatus = getInvoicePaymentStatus(inv);
-    if (currentStatus.isPaid) {
+    const wasInMahnung = currentStatus.status === 'mahnung' || currentStatus.status === 'erinnerung' || inv.wasMahnungResolved;
+
+    let shouldMarkPaid;
+    if (typeof explicitPaid === 'boolean') {
+        shouldMarkPaid = explicitPaid;
+    } else {
+        shouldMarkPaid = !currentStatus.isPaid;
+    }
+
+    if (!shouldMarkPaid) {
         inv.paymentStatus = 'offen';
         inv.status = 'ausgestellt';
         inv.isPaid = false;
         delete inv.paidAt;
-        showToast(`Rechnung ${inv.docNumber} als "Offen" markiert`);
+        delete inv.wasMahnungResolved;
+        showToast(`Rechnung ${inv.docNumber} wieder als "Offen" markiert`);
     } else {
         inv.paymentStatus = 'bezahlt';
         inv.status = 'bezahlt';
         inv.isPaid = true;
         inv.paidAt = new Date().toLocaleDateString('de-DE');
-        showToast(`Rechnung ${inv.docNumber} als bezahlt verbucht ✓`);
+        if (wasInMahnung) {
+            inv.wasMahnungResolved = true;
+            showToast(`Rechnung ${inv.docNumber} als bezahlt verbucht ✓ Mahnung aufgehoben!`);
+        } else {
+            showToast(`Rechnung ${inv.docNumber} als bezahlt verbucht ✓`);
+        }
     }
 
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
@@ -2581,8 +2627,8 @@ window.renderOverviewInvoices = function() {
                             <button type="button" class="btn-card-action action-dunning-btn" onclick="openDunningModal('${inv.id}', 2)" style="color: #dc2626; font-weight: 800; border-color: #fca5a5; background: #fff1f2; padding: 6px 12px; font-size: 0.82rem;">
                                 📄 Mahnung erstellen & drucken
                             </button>
-                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5; padding: 6px 12px; font-size: 0.82rem;">
-                                ✓ Als bezahlt markieren
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', true)" style="color: #047857; font-weight: 800; border: 1.5px solid #059669; background: #ecfdf5; padding: 6px 14px; font-size: 0.82rem; cursor: pointer; box-shadow: 0 1px 3px rgba(5,150,105,0.15);" title="Zahlung verbuchen und Mahnwesen sofort aufheben">
+                                ✓ Zahlung eingegangen (Bezahlt)
                             </button>
                         </div>
                     </div>
@@ -2621,8 +2667,8 @@ window.renderOverviewInvoices = function() {
                             <button type="button" class="btn-card-action action-dunning-btn" onclick="openDunningModal('${inv.id}', 1)" style="color: #b45309; font-weight: 800; border-color: #fde68a; background: #fffbeb; padding: 6px 12px; font-size: 0.82rem;">
                                 📄 Zahlungserinnerung drucken
                             </button>
-                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5; padding: 6px 12px; font-size: 0.82rem;">
-                                ✓ Als bezahlt markieren
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', true)" style="color: #047857; font-weight: 800; border: 1.5px solid #059669; background: #ecfdf5; padding: 6px 14px; font-size: 0.82rem; cursor: pointer; box-shadow: 0 1px 3px rgba(5,150,105,0.15);" title="Zahlung verbuchen & Erinnerung aufheben">
+                                ✓ Zahlung eingegangen (Bezahlt)
                             </button>
                         </div>
                     </div>
@@ -2764,8 +2810,7 @@ window.renderOverviewInvoices = function() {
         return;
     }
 
-    let cardsHtml = "";
-    archive.forEach(inv => {
+    function renderSingleInvoiceCard(inv) {
         const payInfo = getInvoicePaymentStatus(inv);
         const clientName = (inv.client && inv.client.name) ? escapeHtml(inv.client.name) : "Kein Kundenname";
         const clientAddr = (inv.client && (inv.client.street || inv.client.zipCity))
@@ -2775,12 +2820,16 @@ window.renderOverviewInvoices = function() {
         const topItem = (inv.items && inv.items[0]) ? escapeHtml(inv.items[0].title) : "";
         const itemsSnippet = itemCount > 1 ? `${topItem} (+ ${itemCount - 1} weitere Positionen)` : (topItem || `${itemCount} Positionen`);
 
-        cardsHtml += `
+        const d = parseGermanDate(inv.docDate);
+        const mKey = !isNaN(d.getFullYear()) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+        const qKey = !isNaN(d.getFullYear()) ? `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}` : 'unknown';
+
+        return `
             <div class="overview-invoice-card ${payInfo.status === 'mahnung' ? 'is-overdue-mahnung' : ''}" id="card-${inv.id}">
                 <!-- Meta: Doc number & Date & Status -->
                 <div class="card-col-meta">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" class="overview-invoice-chk" value="${inv.id}" onchange="updateOverviewSelectedState()" style="width: 16px; height: 16px; accent-color: #0284c7; cursor: pointer;">
+                        <input type="checkbox" class="overview-invoice-chk" data-month="${mKey}" data-quarter="${qKey}" value="${inv.id}" onchange="updateOverviewSelectedState()" style="width: 16px; height: 16px; accent-color: #0284c7; cursor: pointer;">
                         <span class="card-doc-num">${escapeHtml(inv.docNumber)}</span>
                     </div>
                     <span class="card-doc-date">Datum: ${escapeHtml(inv.docDate)}</span>
@@ -2803,12 +2852,24 @@ window.renderOverviewInvoices = function() {
 
                 <!-- Action Toolbar: Edit, Delete, PDF, XML & Dunning -->
                 <div class="card-col-actions">
-                    ${!payInfo.isPaid ? `
-                        <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5;" title="Rechnung als bezahlt verbuchen">
-                            ✓ Bezahlt
-                        </button>
-                    ` : `
-                        <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}')" style="color: #64748b;" title="Zurück auf 'Offen' setzen">
+                    ${!payInfo.isPaid ? (
+                        payInfo.status === 'mahnung' ? `
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', true)" style="color: #047857; font-weight: 800; border: 1.5px solid #059669; background: #ecfdf5; box-shadow: 0 1px 4px rgba(5, 150, 105, 0.18); display: inline-flex; align-items: center; gap: 5px;" title="Rechnung im Status Mahnung als bezahlt verbuchen und Mahnwesen abschließen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span>✓ Zahlung erhalten</span>
+                            </button>
+                        ` : payInfo.status === 'erinnerung' ? `
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', true)" style="color: #047857; font-weight: 700; border: 1.5px solid #10b981; background: #ecfdf5; display: inline-flex; align-items: center; gap: 5px;" title="Rechnung als bezahlt verbuchen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span>✓ Zahlung erhalten</span>
+                            </button>
+                        ` : `
+                            <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', true)" style="color: #059669; font-weight: 700; border-color: #a7f3d0; background: #ecfdf5;" title="Rechnung als bezahlt verbuchen">
+                                ✓ Bezahlt
+                            </button>
+                        `
+                    ) : `
+                        <button type="button" class="btn-card-action" onclick="toggleInvoicePaidStatus('${inv.id}', false)" style="color: #64748b;" title="Zurück auf 'Offen' setzen">
                             ↩ Offen
                         </button>
                     `}
@@ -2834,9 +2895,136 @@ window.renderOverviewInvoices = function() {
                 </div>
             </div>
         `;
-    });
+    }
 
-    listContainer.innerHTML = cardsHtml;
+    if (overviewFilter.groupingMode === 'monthly') {
+        const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+        const monthGroups = new Map();
+
+        archive.forEach(inv => {
+            const d = parseGermanDate(inv.docDate);
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            const mKey = !isNaN(y) ? `${y}-${String(m).padStart(2, '0')}` : 'unknown';
+            const mLabel = !isNaN(y) ? `${monthNames[m - 1]} ${y}` : 'Unbekannter Monat';
+
+            if (!monthGroups.has(mKey)) {
+                monthGroups.set(mKey, {
+                    key: mKey,
+                    label: mLabel,
+                    invoices: [],
+                    totalGross: 0,
+                    totalNet: 0,
+                    totalTax: 0
+                });
+            }
+            const grp = monthGroups.get(mKey);
+            grp.invoices.push(inv);
+            grp.totalGross += (parseFloat(inv.totalGross) || 0);
+            grp.totalNet += (parseFloat(inv.totalNet) || 0);
+            grp.totalTax += (parseFloat(inv.totalTax) || 0);
+        });
+
+        const sortedGroups = Array.from(monthGroups.values()).sort((a, b) => b.key.localeCompare(a.key));
+        let html = "";
+        sortedGroups.forEach(grp => {
+            html += `
+                <div class="overview-group-section" id="group-month-${grp.key}">
+                    <div class="overview-group-header">
+                        <div class="overview-group-header-left">
+                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" class="overview-month-group-chk" data-month="${grp.key}" onchange="toggleSelectMonthInvoices('${grp.key}', this.checked)" style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;">
+                                <span class="overview-group-title">📅 ${escapeHtml(grp.label)}</span>
+                            </label>
+                            <span class="overview-group-badge">${grp.invoices.length} ${grp.invoices.length === 1 ? 'Rechnung' : 'Rechnungen'}</span>
+                            <div class="overview-group-kpis">
+                                <span>Brutto: <strong>${formatCurrency(grp.totalGross)}</strong></span>
+                                <span style="color: #64748b;">(Netto: ${formatCurrency(grp.totalNet)} | USt: ${formatCurrency(grp.totalTax)})</span>
+                            </div>
+                        </div>
+                        <div class="overview-group-header-actions">
+                            <button type="button" class="btn-group-export-zip" onclick="exportMonthInvoicesArchive('${grp.key}')" title="Alle ${grp.invoices.length} Rechnungen für ${escapeHtml(grp.label)} als PDF-Archiv (.zip) herunterladen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>📥 ${escapeHtml(grp.label)} als PDF-Archiv (.zip)</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overview-group-body">
+                        ${grp.invoices.map(renderSingleInvoiceCard).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    } else if (overviewFilter.groupingMode === 'quarter') {
+        const quarterGroups = new Map();
+        archive.forEach(inv => {
+            const d = parseGermanDate(inv.docDate);
+            const y = d.getFullYear();
+            const q = Math.floor(d.getMonth() / 3) + 1;
+            const qKey = !isNaN(y) ? `${y}-Q${q}` : 'unknown';
+            const qLabel = !isNaN(y) ? `${q}. Quartal ${y} (Q${q})` : 'Unbekanntes Quartal';
+
+            if (!quarterGroups.has(qKey)) {
+                quarterGroups.set(qKey, {
+                    key: qKey,
+                    label: qLabel,
+                    invoices: [],
+                    totalGross: 0,
+                    totalNet: 0,
+                    totalTax: 0
+                });
+            }
+            const grp = quarterGroups.get(qKey);
+            grp.invoices.push(inv);
+            grp.totalGross += (parseFloat(inv.totalGross) || 0);
+            grp.totalNet += (parseFloat(inv.totalNet) || 0);
+            grp.totalTax += (parseFloat(inv.totalTax) || 0);
+        });
+
+        const sortedQGroups = Array.from(quarterGroups.values()).sort((a, b) => b.key.localeCompare(a.key));
+        let html = "";
+        sortedQGroups.forEach(grp => {
+            html += `
+                <div class="overview-group-section" id="group-quarter-${grp.key}">
+                    <div class="overview-group-header">
+                        <div class="overview-group-header-left">
+                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" class="overview-quarter-group-chk" data-quarter="${grp.key}" onchange="toggleSelectQuarterInvoices('${grp.key}', this.checked)" style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;">
+                                <span class="overview-group-title">📊 ${escapeHtml(grp.label)}</span>
+                            </label>
+                            <span class="overview-group-badge">${grp.invoices.length} ${grp.invoices.length === 1 ? 'Rechnung' : 'Rechnungen'}</span>
+                            <div class="overview-group-kpis">
+                                <span>Brutto: <strong>${formatCurrency(grp.totalGross)}</strong></span>
+                                <span style="color: #64748b;">(Netto: ${formatCurrency(grp.totalNet)} | USt: ${formatCurrency(grp.totalTax)})</span>
+                            </div>
+                        </div>
+                        <div class="overview-group-header-actions">
+                            <button type="button" class="btn-group-export-zip" onclick="exportQuarterInvoicesArchive('${grp.key}')" title="Alle ${grp.invoices.length} Rechnungen für ${escapeHtml(grp.label)} als PDF-Archiv (.zip) herunterladen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>📥 ${escapeHtml(grp.label)} als PDF-Archiv (.zip)</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overview-group-body">
+                        ${grp.invoices.map(renderSingleInvoiceCard).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    } else {
+        listContainer.innerHTML = archive.map(renderSingleInvoiceCard).join('');
+    }
+
     if (typeof updateOverviewSelectedState === 'function') updateOverviewSelectedState();
 };
 
@@ -3241,8 +3429,51 @@ Tel: 07231 466641 | E-Mail: gartenbauu@gmail.com`;
 
 window.markInvoiceAsPaidFromDunning = function() {
     if (!currentDunningInvoice) return;
-    toggleInvoicePaidStatus(currentDunningInvoice.id);
+    const invId = currentDunningInvoice.id;
+    toggleInvoicePaidStatus(invId, true);
     closeDunningModal();
+};
+
+window.markSelectedInvoicesAsPaid = function() {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk:checked');
+    if (checkboxes.length === 0) {
+        showToast("Bitte wählen Sie mindestens eine Rechnung aus.");
+        return;
+    }
+
+    const selectedIds = new Set(Array.from(checkboxes).map(cb => String(cb.value)));
+    const archive = getInvoicesArchive();
+    let updatedCount = 0;
+    let mahnungResolvedCount = 0;
+
+    archive.forEach(inv => {
+        if (selectedIds.has(String(inv.id)) || selectedIds.has(String(inv.docNumber))) {
+            const currentStatus = getInvoicePaymentStatus(inv);
+            if (!currentStatus.isPaid) {
+                if (currentStatus.status === 'mahnung' || currentStatus.status === 'erinnerung' || inv.wasMahnungResolved) {
+                    mahnungResolvedCount++;
+                    inv.wasMahnungResolved = true;
+                }
+                inv.paymentStatus = 'bezahlt';
+                inv.status = 'bezahlt';
+                inv.isPaid = true;
+                inv.paidAt = new Date().toLocaleDateString('de-DE');
+                updatedCount++;
+            }
+        }
+    });
+
+    if (updatedCount > 0) {
+        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+        renderOverviewInvoices();
+        if (mahnungResolvedCount > 0) {
+            showToast(`${updatedCount} Beleg(e) als bezahlt verbucht (${mahnungResolvedCount} Mahnung(en) erledigt) ✓`);
+        } else {
+            showToast(`${updatedCount} Beleg(e) erfolgreich als bezahlt verbucht ✓`);
+        }
+    } else {
+        showToast("Die ausgewählten Belege sind bereits als bezahlt markiert.");
+    }
 };
 
 window.toggleSelectAllOverviewInvoices = function(forceChecked) {
@@ -3264,6 +3495,48 @@ window.toggleSelectAllOverviewInvoices = function(forceChecked) {
     updateOverviewSelectedState();
 };
 
+window.toggleSelectMonthInvoices = function(monthKey, isChecked) {
+    const boxes = document.querySelectorAll(`.overview-invoice-chk[data-month="${monthKey}"]`);
+    boxes.forEach(cb => { cb.checked = isChecked; });
+    updateOverviewSelectedState();
+};
+
+window.toggleSelectQuarterInvoices = function(quarterKey, isChecked) {
+    const boxes = document.querySelectorAll(`.overview-invoice-chk[data-quarter="${quarterKey}"]`);
+    boxes.forEach(cb => { cb.checked = isChecked; });
+    updateOverviewSelectedState();
+};
+
+window.selectCurrentMonthInvoices = function() {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk');
+    if (checkboxes.length === 0) {
+        showToast("Keine Rechnungen in der Ansicht vorhanden.");
+        return;
+    }
+
+    // Try to find the monthKey of the first invoice in current view (most recent)
+    let targetMonth = "";
+    for (const cb of checkboxes) {
+        const m = cb.getAttribute('data-month');
+        if (m && m !== 'unknown') {
+            targetMonth = m;
+            break;
+        }
+    }
+
+    if (!targetMonth) {
+        checkboxes.forEach(cb => { cb.checked = true; });
+    } else {
+        checkboxes.forEach(cb => {
+            cb.checked = (cb.getAttribute('data-month') === targetMonth);
+        });
+    }
+
+    updateOverviewSelectedState();
+    const count = document.querySelectorAll('.overview-invoice-chk:checked').length;
+    showToast(`${count} Rechnungen für den Monat ausgewählt.`);
+};
+
 window.updateOverviewSelectedState = function() {
     const checkboxes = document.querySelectorAll('.overview-invoice-chk');
     const checked = Array.from(checkboxes).filter(cb => cb.checked);
@@ -3274,6 +3547,8 @@ window.updateOverviewSelectedState = function() {
     const counter = document.getElementById('overview-selected-counter');
     const topChk = document.getElementById('overview-select-all-chk');
     const labelText = document.getElementById('overview-select-all-label-text');
+    const exportText = document.getElementById('btn-export-archive-text');
+    const paidText = document.getElementById('btn-bulk-mark-paid-text');
 
     if (counter) {
         counter.textContent = `${count} von ${total} Belegen ausgewählt`;
@@ -3288,6 +3563,333 @@ window.updateOverviewSelectedState = function() {
     if (topChk) {
         topChk.checked = count === total && total > 0;
         topChk.indeterminate = count > 0 && count < total;
+    }
+    if (exportText) {
+        exportText.textContent = `Ausgewählte (${count}) als PDF-Archiv (.zip) exportieren`;
+    }
+    if (paidText) {
+        paidText.textContent = `Ausgewählte (${count}) als bezahlt markieren`;
+    }
+
+    // Also sync month group checkboxes if present
+    document.querySelectorAll('.overview-month-group-chk').forEach(monthChk => {
+        const mKey = monthChk.getAttribute('data-month');
+        const mBoxes = document.querySelectorAll(`.overview-invoice-chk[data-month="${mKey}"]`);
+        if (mBoxes.length > 0) {
+            const mChecked = Array.from(mBoxes).filter(cb => cb.checked).length;
+            monthChk.checked = mChecked === mBoxes.length;
+            monthChk.indeterminate = mChecked > 0 && mChecked < mBoxes.length;
+        }
+    });
+
+    // Also sync quarter group checkboxes if present
+    document.querySelectorAll('.overview-quarter-group-chk').forEach(qChk => {
+        const qKey = qChk.getAttribute('data-quarter');
+        const qBoxes = document.querySelectorAll(`.overview-invoice-chk[data-quarter="${qKey}"]`);
+        if (qBoxes.length > 0) {
+            const qChecked = Array.from(qBoxes).filter(cb => cb.checked).length;
+            qChk.checked = qChecked === qBoxes.length;
+            qChk.indeterminate = qChecked > 0 && qChecked < qBoxes.length;
+        }
+    });
+};
+
+// ==========================================================================
+// BATCH PDF-ARCHIV EXPORT (.ZIP) ENGINE
+// ==========================================================================
+let lastGeneratedZipBlob = null;
+let lastGeneratedZipFilename = "";
+
+window.closeExportArchiveModal = function() {
+    const modal = document.getElementById('export-archive-modal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.triggerRedownloadArchive = function() {
+    if (lastGeneratedZipBlob && lastGeneratedZipFilename) {
+        triggerBlobDownload(lastGeneratedZipBlob, lastGeneratedZipFilename);
+        showToast(`Download von ${lastGeneratedZipFilename} erneut gestartet.`);
+    }
+};
+
+function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+window.exportMonthInvoicesArchive = function(monthKey) {
+    const archive = getInvoicesArchive().filter(inv => (inv.docType || 'rechnung') !== 'angebot');
+    const [targetYear, targetMonth] = monthKey.split('-');
+    const monthInvoices = archive.filter(inv => {
+        const d = parseGermanDate(inv.docDate);
+        return d.getFullYear() === parseInt(targetYear, 10) && (d.getMonth() + 1) === parseInt(targetMonth, 10);
+    });
+
+    if (monthInvoices.length === 0) {
+        showToast("Keine Rechnungen in diesem Monat vorhanden.");
+        return;
+    }
+
+    const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+    const monthTitle = `${monthNames[parseInt(targetMonth, 10) - 1]} ${targetYear}`;
+    const slug = `Monat_${targetYear}-${targetMonth}`;
+
+    exportInvoicesToZipArchive(monthInvoices, `Monatsarchiv ${monthTitle}`, slug);
+};
+
+window.exportQuarterInvoicesArchive = function(quarterKey) {
+    const archive = getInvoicesArchive().filter(inv => (inv.docType || 'rechnung') !== 'angebot');
+    const [targetYear, targetQ] = quarterKey.split('-');
+    const qNum = parseInt(targetQ.replace('Q', ''), 10);
+    const qInvoices = archive.filter(inv => {
+        const d = parseGermanDate(inv.docDate);
+        const invQ = Math.floor(d.getMonth() / 3) + 1;
+        return d.getFullYear() === parseInt(targetYear, 10) && invQ === qNum;
+    });
+
+    if (qInvoices.length === 0) {
+        showToast("Keine Rechnungen in diesem Quartal vorhanden.");
+        return;
+    }
+
+    const qTitle = `${qNum}. Quartal ${targetYear} (${targetQ})`;
+    const slug = `Quartal_${targetYear}-${targetQ}`;
+
+    exportInvoicesToZipArchive(qInvoices, `Quartalsarchiv ${qTitle}`, slug);
+};
+
+window.exportSelectedInvoicesArchive = function() {
+    const checkboxes = document.querySelectorAll('.overview-invoice-chk:checked');
+    if (checkboxes.length === 0) {
+        showToast("Bitte wählen Sie mindestens eine Rechnung aus.");
+        return;
+    }
+
+    const selectedIds = new Set(Array.from(checkboxes).map(cb => cb.value));
+    const archive = getInvoicesArchive().filter(inv => (inv.docType || 'rechnung') !== 'angebot');
+    const selectedInvoices = archive.filter(inv => selectedIds.has(String(inv.id)));
+
+    if (selectedInvoices.length === 0) {
+        showToast("Keine passenden Rechnungen gefunden.");
+        return;
+    }
+
+    const now = new Date();
+    const slug = `Auswahl_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    exportInvoicesToZipArchive(selectedInvoices, `Ausgewählte Rechnungen (${selectedInvoices.length} Belege)`, slug);
+};
+
+window.exportInvoicesToZipArchive = async function(invoices, archiveTitle, archiveSlug) {
+    if (typeof JSZip === 'undefined') {
+        showToast("ZIP-Bibliothek wird geladen, bitte einen kurzen Moment gedulden...");
+        return;
+    }
+    if (typeof html2pdf === 'undefined') {
+        showToast("PDF-Generator ist nicht verfügbar.");
+        return;
+    }
+
+    const modal = document.getElementById('export-archive-modal');
+    const titleElem = document.getElementById('export-archive-modal-title');
+    const subtitleElem = document.getElementById('export-archive-modal-subtitle');
+    const stepText = document.getElementById('export-archive-step-text');
+    const percentElem = document.getElementById('export-archive-percent');
+    const progressBar = document.getElementById('export-archive-progress-bar');
+    const statusDetail = document.getElementById('export-archive-status-detail');
+    const itemsLog = document.getElementById('export-archive-items-log');
+    const progressView = document.getElementById('export-archive-progress-view');
+    const successView = document.getElementById('export-archive-success-view');
+    const closeBtn = document.getElementById('export-archive-close-btn');
+
+    if (modal) modal.style.display = 'flex';
+    if (titleElem) titleElem.textContent = `PDF-Archiv exportieren: ${archiveTitle}`;
+    if (subtitleElem) subtitleElem.textContent = `Palnau Gartenbau GmbH • ${invoices.length} Rechnungen werden gebündelt`;
+    if (progressView) progressView.style.display = 'block';
+    if (successView) successView.style.display = 'none';
+    if (closeBtn) closeBtn.style.display = 'none';
+    if (progressBar) progressBar.style.width = '0%';
+    if (percentElem) percentElem.textContent = '0%';
+    if (itemsLog) itemsLog.innerHTML = '';
+    if (stepText) stepText.textContent = `Generiere druckfertige PDFs für ${invoices.length} Rechnungen...`;
+
+    // Save previous editor state safely
+    const previousState = JSON.parse(JSON.stringify(appState));
+
+    const zip = new JSZip();
+    const cleanElement = document.getElementById('clean-pdf-document');
+
+    try {
+        for (let i = 0; i < invoices.length; i++) {
+            const inv = invoices[i];
+            const clientName = (inv.client && inv.client.name) || 'Kunde';
+            const safeClient = clientName.replace(/[^a-zA-Z0-9äöüÄÖÜß_-]/g, '_').substring(0, 25);
+            const docNum = inv.docNumber || `RE-${i + 1}`;
+            const pdfFilename = `${docNum}_${safeClient}.pdf`;
+
+            if (statusDetail) {
+                statusDetail.textContent = `[${i + 1}/${invoices.length}] Erstelle PDF für ${docNum} (${clientName})...`;
+            }
+
+            // Populate clean document
+            appState.docType = inv.docType || "rechnung";
+            appState.docNumber = inv.docNumber || "";
+            appState.docDate = inv.docDate || "";
+            appState.servicePeriod = inv.servicePeriod || "";
+            appState.taxRate = inv.taxRate !== undefined ? inv.taxRate : 19;
+            appState.clientType = inv.clientType || (inv.client && inv.client.clientType) || 'privat';
+            appState.workLocation = inv.workLocation || (inv.client && inv.client.workLocation) || '';
+            appState.client = {
+                name: (inv.client && inv.client.name) || '',
+                street: (inv.client && inv.client.street) || '',
+                zipCity: (inv.client && inv.client.zipCity) || ''
+            };
+            appState.items = JSON.parse(JSON.stringify(inv.items || []));
+            appState.notesText = inv.notesText || "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen auf das unten genannte Bankkonto.";
+
+            renderCleanDocument();
+
+            cleanElement.style.display = 'flex';
+            cleanElement.style.flexDirection = 'column';
+            cleanElement.style.justifyContent = 'space-between';
+            cleanElement.style.position = 'static';
+            cleanElement.style.width = '794px';
+            cleanElement.style.maxWidth = '794px';
+            cleanElement.style.minHeight = '1116px';
+            cleanElement.style.height = 'auto';
+            cleanElement.style.boxSizing = 'border-box';
+            cleanElement.style.padding = '32px 42px 24px 42px';
+            cleanElement.style.margin = '0 auto';
+            cleanElement.style.backgroundColor = '#ffffff';
+
+            const opt = {
+                margin: [0, 0, 0, 0],
+                filename: pdfFilename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    letterRendering: true,
+                    scrollX: 0,
+                    scrollY: 0,
+                    backgroundColor: '#ffffff'
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['css', 'legacy'] }
+            };
+
+            const pdfWorker = html2pdf().set(opt).from(cleanElement);
+            const pdf = await pdfWorker.toPdf().get('pdf');
+            const totalPages = pdf.internal.getNumberOfPages();
+            if (totalPages > 1 && cleanElement.offsetHeight <= 1125) {
+                pdf.deletePage(totalPages);
+            }
+            const pdfBlob = pdf.output('blob');
+
+            zip.file(pdfFilename, pdfBlob);
+            cleanElement.style.display = 'none';
+
+            const pct = Math.round(((i + 1) / invoices.length) * 85);
+            if (progressBar) progressBar.style.width = `${pct}%`;
+            if (percentElem) percentElem.textContent = `${pct}%`;
+
+            if (itemsLog) {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.innerHTML = `
+                    <span style="color:#0f172a; font-weight:600;">✓ ${escapeHtml(docNum)} • ${escapeHtml(clientName)}</span>
+                    <span style="color:#059669; font-weight:700;">${formatCurrency(inv.totalGross)}</span>
+                `;
+                itemsLog.appendChild(row);
+                itemsLog.scrollTop = itemsLog.scrollHeight;
+            }
+        }
+
+        // Generate DATEV / Excel Rechnungsjournal CSV
+        if (statusDetail) statusDetail.textContent = "Erstelle DATEV / Excel Rechnungsjournal (.csv)...";
+        let csv = "\uFEFFRechnungsnummer;Datum;Leistungszeitraum;Kunde;Strasse;PLZ_Ort;Netto_EUR;MwSt_EUR;Brutto_EUR;Zahlungsstatus\r\n";
+        invoices.forEach(inv => {
+            const pay = getInvoicePaymentStatus(inv);
+            const net = (parseFloat(inv.totalNet || 0)).toFixed(2).replace('.', ',');
+            const tax = (parseFloat(inv.totalTax || 0)).toFixed(2).replace('.', ',');
+            const gross = (parseFloat(inv.totalGross || 0)).toFixed(2).replace('.', ',');
+            const name = ((inv.client && inv.client.name) || '').replace(/"/g, '""');
+            const street = ((inv.client && inv.client.street) || '').replace(/"/g, '""');
+            const zipCity = ((inv.client && inv.client.zipCity) || '').replace(/"/g, '""');
+            csv += `"${inv.docNumber}";"${inv.docDate}";"${inv.servicePeriod || ''}";"${name}";"${street}";"${zipCity}";"${net}";"${tax}";"${gross}";"${pay.label}"\r\n`;
+        });
+        zip.file(`Rechnungsjournal_${archiveSlug}.csv`, csv);
+
+        // Generate Summary TXT Manifest
+        const sumGross = invoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+        const sumNet = invoices.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+        const sumTax = invoices.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
+        let txt = `========================================================================\r\n`;
+        txt += `PALNAU GARTENBAU GMBH • RECHNUNGSARCHIV\r\n`;
+        txt += `Reihelberg 3, 75210 Keltern-Dietlingen\r\n`;
+        txt += `Archiv: ${archiveTitle}\r\n`;
+        txt += `Erstellt am: ${new Date().toLocaleDateString('de-DE')} um ${new Date().toLocaleTimeString('de-DE')} Uhr\r\n`;
+        txt += `Anzahl Rechnungen: ${invoices.length}\r\n`;
+        txt += `Gesamtsumme Brutto: ${formatCurrency(sumGross)}\r\n`;
+        txt += `Gesamtsumme Netto:  ${formatCurrency(sumNet)}\r\n`;
+        txt += `Gesamtsumme 19% USt: ${formatCurrency(sumTax)}\r\n`;
+        txt += `========================================================================\r\n\r\n`;
+        invoices.forEach((inv, idx) => {
+            txt += `${idx + 1}. [${inv.docNumber}] Datum: ${inv.docDate} | Kunde: ${(inv.client && inv.client.name) || 'Kunde'} | Brutto: ${formatCurrency(inv.totalGross)}\r\n`;
+        });
+        zip.file(`Rechnungsuebersicht_${archiveSlug}.txt`, txt);
+
+        if (statusDetail) statusDetail.textContent = "ZIP-Archiv wird komprimiert und verpackt...";
+        if (progressBar) progressBar.style.width = '95%';
+        if (percentElem) percentElem.textContent = '95%';
+
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        const zipFilename = `Palnau_Rechnungen_Archiv_${archiveSlug}.zip`;
+
+        lastGeneratedZipBlob = zipBlob;
+        lastGeneratedZipFilename = zipFilename;
+
+        if (progressBar) progressBar.style.width = '100%';
+        if (percentElem) percentElem.textContent = '100%';
+
+        // Trigger automatic download
+        triggerBlobDownload(zipBlob, zipFilename);
+
+        // Switch to Success View
+        if (progressView) progressView.style.display = 'none';
+        if (successView) successView.style.display = 'block';
+        if (closeBtn) closeBtn.style.display = 'inline-block';
+
+        const filenameDisplay = document.getElementById('export-archive-filename-display');
+        const statsDisplay = document.getElementById('export-archive-stats-display');
+        if (filenameDisplay) filenameDisplay.textContent = zipFilename;
+        if (statsDisplay) {
+            statsDisplay.textContent = `${invoices.length} Rechnungen als druckfertige PDFs (${formatCurrency(sumGross)} Brutto) • Inkl. DATEV/Excel Journal (.csv) & Belegübersicht (.txt)`;
+        }
+
+        showToast(`Archiv "${zipFilename}" mit ${invoices.length} PDFs erfolgreich heruntergeladen!`);
+    } catch (err) {
+        console.error("Archive export error:", err);
+        showToast("Fehler beim Erstellen des PDF-Archivs: " + err.message);
+        if (statusDetail) statusDetail.textContent = "Fehler: " + err.message;
+        if (closeBtn) closeBtn.style.display = 'inline-block';
+    } finally {
+        appState = previousState;
+        renderCleanDocument();
+        cleanElement.style.display = 'none';
+        cleanElement.style.position = '';
+        cleanElement.style.width = '';
+        cleanElement.style.maxWidth = '';
+        cleanElement.style.minHeight = '';
+        cleanElement.style.backgroundColor = '';
+        if (closeBtn) closeBtn.style.display = 'inline-block';
     }
 };
 
