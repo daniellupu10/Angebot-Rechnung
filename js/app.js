@@ -14,6 +14,7 @@ let appState = {
     taxRate: 19,
     clientType: "privat", // "privat" | "firma"
     workLocation: "", // Only relevant if clientType === "firma" (Ausführungsort / Einsatzort)
+    customWageNet: null, // Optionaler benutzerdefinierter Netto-Lohnkostenbetrag für Firmenkunden
     client: {
         name: "",
         street: "",
@@ -234,6 +235,7 @@ function startCleanState(emptyAll = false) {
         taxRate: 19,
         clientType: "privat",
         workLocation: "",
+        customWageNet: null,
         client: {
             name: "",
             street: "",
@@ -826,10 +828,49 @@ function calculateTotals() {
     };
 }
 
+// Berechnet die Lohnkosten für Firmenkunden (Netto, MwSt-Betrag, Brutto)
+function calculateWageCosts(items, taxRate, customNetWage) {
+    const rate = (taxRate !== undefined && !isNaN(parseFloat(taxRate))) ? parseFloat(taxRate) : 19;
+    
+    let netWage = 0;
+    const hasCustom = (customNetWage !== undefined && customNetWage !== null && customNetWage !== '' && !isNaN(parseFloat(customNetWage)));
+    
+    if (hasCustom) {
+        netWage = Math.max(0, parseFloat(customNetWage));
+    } else {
+        // Automatische Berechnung aus Positionen:
+        // Positionen mit Stunden-/Tageseinheiten (Std, Stunden, h, Tag, Tage, Mannstunden)
+        const laborUnits = ['std', 'stunden', 'stunde', 'h', 'tag', 'tage', 'mannstunden'];
+        const laborItems = (items || []).filter(item => {
+            const u = (item.unit || '').trim().toLowerCase();
+            return laborUnits.includes(u);
+        });
+
+        if (laborItems.length > 0) {
+            netWage = laborItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+        } else {
+            // Wenn keine Stunden-Einheit vorliegt, die gesamte Nettosumme als Basis heranziehen
+            netWage = (items || []).reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+        }
+    }
+
+    const wageTax = (netWage * rate) / 100;
+    const wageGross = netWage + wageTax;
+
+    return {
+        wageNet: Math.round(netWage * 100) / 100,
+        taxRate: rate,
+        wageTax: Math.round(wageTax * 100) / 100,
+        wageGross: Math.round(wageGross * 100) / 100,
+        isCustom: hasCustom
+    };
+}
+
 // Update Screen Totals
 function updateTotals() {
     const totals = calculateTotals();
     const isQuote = appState.docType === "angebot";
+    const clientType = appState.clientType || "privat";
 
     document.getElementById('doc-net-total').textContent = formatCurrency(totals.netTotal);
     document.getElementById('doc-tax-label').textContent = `Umsatzsteuer ${appState.taxRate}%:`;
@@ -837,9 +878,98 @@ function updateTotals() {
     document.getElementById('doc-gross-label').textContent = isQuote ? "Angebotsbetrag:" : "Rechnungsbetrag:";
     document.getElementById('doc-gross-total').textContent = formatCurrency(totals.grossTotal);
 
+    // Firmenkunden Lohnkosten-Satz auf dem interaktiven Bogen (unterhalb der totalen Berechnung)
+    const firmaClauseBox = document.getElementById('doc-firma-wage-clause');
+    const firmaClauseText = document.getElementById('doc-firma-wage-clause-text');
+    if (firmaClauseBox && firmaClauseText) {
+        if (!isQuote && clientType === 'firma') {
+            const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
+            firmaClauseText.textContent = `Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.`;
+            firmaClauseBox.style.display = 'block';
+        } else {
+            firmaClauseBox.style.display = 'none';
+        }
+    }
+
+    // Sidebar Widget synchronisieren
+    updateFirmaWageSidebar();
+
     // Update Clean Document
     renderCleanDocument();
 }
+
+// Sidebar Widget für Firmenkunden-Lohnkosten aktualisieren
+function updateFirmaWageSidebar() {
+    const isQuote = appState.docType === "angebot";
+    const clientType = appState.clientType || "privat";
+    const container = document.getElementById('firma-wage-settings');
+    if (!container) return;
+
+    if (!isQuote && clientType === 'firma') {
+        container.style.display = 'block';
+        const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
+        const input = document.getElementById('doc-wage-net-input');
+        const badge = document.getElementById('wage-mode-badge');
+        const preview = document.getElementById('firma-wage-preview-text');
+
+        if (input && document.activeElement !== input) {
+            input.value = wageCalc.isCustom
+                ? parseFloat(appState.customWageNet).toFixed(2)
+                : (wageCalc.wageNet ? wageCalc.wageNet.toFixed(2) : '0.00');
+        }
+        if (badge) {
+            badge.textContent = wageCalc.isCustom ? 'Manuell' : 'Auto';
+            badge.style.background = wageCalc.isCustom ? '#fef3c7' : '#ecfdf5';
+            badge.style.color = wageCalc.isCustom ? '#92400e' : '#047857';
+            badge.style.borderColor = wageCalc.isCustom ? '#fde68a' : '#a7f3d0';
+        }
+        if (preview) {
+            preview.innerHTML = `<strong>Satz auf Rechnung:</strong><br>„Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.“`;
+        }
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+// User-Aktionen für Firmenkunden-Lohnkosten
+window.handleCustomWageInput = function(val) {
+    if (val === '' || isNaN(parseFloat(val))) {
+        appState.customWageNet = null;
+    } else {
+        appState.customWageNet = Math.max(0, parseFloat(val));
+    }
+    updateTotals();
+    saveState();
+};
+
+window.resetWageToAuto = function() {
+    appState.customWageNet = null;
+    updateTotals();
+    saveState();
+    showToast("Lohnkosten auf automatische Berechnung zurückgesetzt.");
+};
+
+window.setWageNetPercentage = function(percent) {
+    const totals = calculateTotals();
+    const net = (totals.netTotal * percent) / 100;
+    appState.customWageNet = Math.round(net * 100) / 100;
+    updateTotals();
+    saveState();
+    showToast(`Lohnkosten auf ${percent}% (${formatCurrency(appState.customWageNet)}) gesetzt.`);
+};
+
+window.setWageFromHoursOnly = function() {
+    const laborUnits = ['std', 'stunden', 'stunde', 'h', 'tag', 'tage', 'mannstunden'];
+    const laborItems = (appState.items || []).filter(item => {
+        const u = (item.unit || '').trim().toLowerCase();
+        return laborUnits.includes(u);
+    });
+    const sum = laborItems.reduce((s, it) => s + (parseFloat(it.total) || 0), 0);
+    appState.customWageNet = Math.round(sum * 100) / 100;
+    updateTotals();
+    saveState();
+    showToast(`Lohnkosten aus Stundenpositionen berechnet (${formatCurrency(appState.customWageNet)}).`);
+};
 
 // Smart Dock Recommendations in Sidebar
 function updateSmartDock() {
@@ -1092,6 +1222,17 @@ function renderCleanDocument() {
         `;
     }
 
+    // Firmenkunden Lohnkosten-Satz (bei Rechnungen für Firmenkunden direkt unter der totalen Euro-Berechnung)
+    let firmaWageNoticeHtml = "";
+    if (!isQuote && clientType === 'firma') {
+        const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
+        firmaWageNoticeHtml = `
+            <div class="clean-firma-wage-notice">
+                Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.
+            </div>
+        `;
+    }
+
     cleanContainer.innerHTML = `
         <div class="clean-body-content">
             <!-- DIN 5008 Falz- und Lochmarken für DIN-Lang Fensterbriefumschläge -->
@@ -1164,6 +1305,7 @@ function renderCleanDocument() {
                     <span>${isQuote ? 'Angebotsbetrag:' : 'Rechnungsbetrag:'}</span>
                     <span style="white-space: nowrap;">${formatCurrency(totals.grossTotal)}</span>
                 </div>
+                ${firmaWageNoticeHtml}
             </div>
 
             <!-- Notes / Terms -->
@@ -1378,6 +1520,15 @@ function setupEventListeners() {
         appState.client.zipCity = e.target.value;
         renderCleanDocument();
         saveState();
+    });
+
+    document.getElementById('doc-firma-wage-clause')?.addEventListener('click', () => {
+        const input = document.getElementById('doc-wage-net-input');
+        if (input) {
+            input.focus();
+            input.select();
+            showToast("Lohnkosten (netto) in der linken Seitenleiste anpassen.");
+        }
     });
 
     document.getElementById('doc-meta-number')?.addEventListener('input', (e) => {
@@ -1901,6 +2052,7 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
         taxRate: appState.taxRate || 19,
         clientType: appState.clientType || "privat",
         workLocation: appState.workLocation || "",
+        customWageNet: appState.customWageNet !== undefined ? appState.customWageNet : null,
         client: {
             name: appState.client.name || "Kunde ohne Name",
             street: appState.client.street || "",
@@ -2076,6 +2228,7 @@ window.editInvoiceInGenerator = function(invoiceId) {
     appState.taxRate = invoice.taxRate || 19;
     appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || "privat";
     appState.workLocation = invoice.workLocation || (invoice.client && invoice.client.workLocation) || "";
+    appState.customWageNet = invoice.customWageNet !== undefined ? invoice.customWageNet : null;
     appState.client = {
         name: invoice.client ? invoice.client.name : "",
         street: invoice.client ? invoice.client.street : "",
@@ -3744,6 +3897,7 @@ window.exportInvoicesToZipArchive = async function(invoices, archiveTitle, archi
             appState.taxRate = inv.taxRate !== undefined ? inv.taxRate : 19;
             appState.clientType = inv.clientType || (inv.client && inv.client.clientType) || 'privat';
             appState.workLocation = inv.workLocation || (inv.client && inv.client.workLocation) || '';
+            appState.customWageNet = inv.customWageNet !== undefined ? inv.customWageNet : null;
             appState.client = {
                 name: (inv.client && inv.client.name) || '',
                 street: (inv.client && inv.client.street) || '',
@@ -4788,6 +4942,9 @@ window.downloadInvoicePdfDirect = function(invoiceId) {
     appState.docDate = invoice.docDate;
     appState.servicePeriod = invoice.servicePeriod || "";
     appState.taxRate = invoice.taxRate || 19;
+    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || "privat";
+    appState.workLocation = invoice.workLocation || (invoice.client && invoice.client.workLocation) || "";
+    appState.customWageNet = invoice.customWageNet !== undefined ? invoice.customWageNet : null;
     appState.client = { ...invoice.client };
     appState.items = JSON.parse(JSON.stringify(invoice.items || []));
     appState.notesText = invoice.notesText || "";

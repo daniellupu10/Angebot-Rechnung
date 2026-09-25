@@ -949,6 +949,17 @@ body {
     white-space: nowrap;
 }
 
+/* Firmenkunden Lohnkosten-Satz auf interaktivem A4-Bogen */
+.doc-firma-wage-clause {
+    border-top: 1px dashed #cbd5e1;
+    margin-top: 6px;
+    padding-top: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #334155;
+    font-weight: 500;
+}
+
 /* Notes & Payment Terms */
 .doc-notes-container {
     clear: both;
@@ -1569,8 +1580,8 @@ body {
 
 .clean-totals {
     float: right;
-    width: 320px;
-    margin-bottom: 20px;
+    width: 335px;
+    margin-bottom: 16px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -1599,9 +1610,20 @@ body {
     white-space: nowrap;
 }
 
+/* Firmenkunden Lohnkosten-Satz im PDF & Druck */
+.clean-firma-wage-notice {
+    border-top: 1px solid #cbd5e1;
+    margin-top: 7px;
+    padding-top: 6px;
+    font-size: 10.5px;
+    line-height: 1.42;
+    color: #334155;
+    font-weight: 500;
+}
+
 .clean-notes {
     clear: both;
-    margin-top: 22px;
+    margin-top: 18px;
     margin-bottom: 16px;
     font-size: 14px;
     line-height: 1.55;

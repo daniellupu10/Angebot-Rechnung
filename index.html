@@ -1295,6 +1295,33 @@
                     </label>
                     <input type="text" id="doc-work-location" class="neu-input" style="font-size: 12px; padding: 6px 8px; width: 100%; box-sizing: border-box;" placeholder="z. B. Baustelle Siemensstraße 12..." oninput="handleWorkLocationChange(this.value)">
                 </div>
+
+                <!-- Firmenkunden Lohnkosten-Aufteilung & Satz-Steuerung -->
+                <div id="firma-wage-settings" style="display: none; margin-top: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label for="doc-wage-net-input" style="font-size: 11px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 4px;">
+                            <span>💼</span> Lohnkosten (netto):
+                        </label>
+                        <span id="wage-mode-badge" style="font-size: 10px; font-weight: 700; color: #047857; background: #ecfdf5; padding: 1px 6px; border-radius: 4px; border: 1px solid #a7f3d0;">
+                            Auto
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px;">
+                        <input type="number" step="0.01" min="0" id="doc-wage-net-input" class="neu-input" style="font-size: 12px; font-weight: 700; padding: 5px 8px; flex: 1;" placeholder="0,00" oninput="handleCustomWageInput(this.value)">
+                        <span style="font-size: 12px; font-weight: 700; color: #475569;">€</span>
+                        <button type="button" class="neu-btn" onclick="resetWageToAuto()" title="Automatisch aus Stunden-Positionen oder Gesamtsumme berechnen" style="font-size: 11px; padding: 4px 8px; font-weight: 600;">
+                            Auto ⟳
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap;">
+                        <button type="button" class="preset-chip" onclick="setWageNetPercentage(100)" style="font-size: 10px; padding: 2px 7px;">100% Netto</button>
+                        <button type="button" class="preset-chip" onclick="setWageNetPercentage(75)" style="font-size: 10px; padding: 2px 7px;">75%</button>
+                        <button type="button" class="preset-chip" onclick="setWageNetPercentage(50)" style="font-size: 10px; padding: 2px 7px;">50%</button>
+                        <button type="button" class="preset-chip" onclick="setWageFromHoursOnly()" style="font-size: 10px; padding: 2px 7px;">Nur Std-Pos.</button>
+                    </div>
+                    <div id="firma-wage-preview-text" style="font-size: 10.5px; color: #334155; line-height: 1.4; background: #ffffff; padding: 6px 8px; border-radius: 5px; border: 1px solid #e2e8f0;">
+                    </div>
+                </div>
             </div>
 
             <!-- 3. Formular-Aktionen -->
@@ -1466,6 +1493,9 @@
                     <div class="totals-entry grand-total">
                         <span id="doc-gross-label">Rechnungsbetrag:</span>
                         <span id="doc-gross-total">0,00 €</span>
+                    </div>
+                    <div id="doc-firma-wage-clause" class="doc-firma-wage-clause" style="display: none;" title="Enthaltene Lohnkosten für Firmenkunden">
+                        <span id="doc-firma-wage-clause-text"></span>
                     </div>
                 </div>
 
