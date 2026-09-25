@@ -21,6 +21,31 @@ const FIXED_COMPANY_DATA = Object.freeze({
     bic: "PFORDE66XXX"
 });
 
+// Hilfsfunktion zur Erkennung von gewerblichen Kunden / Firmenkunden (B2B)
+function isCompanyClient(clientOrName, explicitType) {
+    if (explicitType === 'firma') return true;
+    if (explicitType === 'privat') return false;
+    if (clientOrName && clientOrName.clientType === 'firma') return true;
+    if (clientOrName && clientOrName.clientType === 'privat') return false;
+
+    const name = (typeof clientOrName === 'string' ? clientOrName : (clientOrName && clientOrName.name ? clientOrName.name : '')).trim();
+    if (!name) return false;
+    const lower = name.toLowerCase();
+
+    // Typische deutsche Rechtsformen und gewerbliche Bezeichnungen
+    const companyKeywords = [
+        'gmbh', 'gbr', ' ag', ' ag.', 'ag ', ' ug', 'ug ', 'ohg', ' kg', 'kg.', 'kg ', 'partg', 'kgaa',
+        'e.v.', ' e.v', ' ev ', ' ev.', 'eingetragener verein',
+        'verwaltung', 'hausverwaltung', 'immobilien',
+        'weingut', 'restaurant', 'gaststätte', 'hotel', 'gasthof', 'bistro', 'café', 'cafe',
+        'b2b', 'firma', 'gewerbe', 'gesellschaft', 'betrieb',
+        'autohaus', 'bäckerei', 'metzgerei', 'schreinerei', 'malerbetrieb', 'elektro',
+        'sanitär', 'apotheke', 'praxis', 'kanzlei', 'notariat', 'steuerberater'
+    ];
+
+    return companyKeywords.some(kw => lower.includes(kw));
+}
+
 // Gartenbau-Dienstleistungskatalog mit Kategorien, Richtwerten und Vorlagentexten
 const SERVICES_CATALOG = [
     {
@@ -758,10 +783,12 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "März 2026",
         servicePeriod: "Februar / März 2026",
         taxRate: 19,
+        clientType: "privat",
         client: {
             name: "Familie Markus Weber",
             street: "Sonnenhang 14",
-            zipCity: "75179 Pforzheim"
+            zipCity: "75179 Pforzheim",
+            clientType: "privat"
         },
         items: [
             {
@@ -827,10 +854,12 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Februar 2026",
         servicePeriod: "Februar 2026",
         taxRate: 19,
+        clientType: "privat",
         client: {
             name: "Dr. med. Thomas Schneider",
             street: "Kastanienallee 8",
-            zipCity: "75175 Pforzheim"
+            zipCity: "75175 Pforzheim",
+            clientType: "privat"
         },
         items: [
             {
@@ -880,10 +909,14 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Januar 2026",
         servicePeriod: "Januar 2026",
         taxRate: 19,
+        clientType: "firma",
+        workLocation: "Wohnanlage Keltern-Dietlingen",
         client: {
             name: "Hausverwaltung Keltern GbR",
             street: "Hauptstraße 42",
-            zipCity: "75210 Keltern"
+            zipCity: "75210 Keltern",
+            clientType: "firma",
+            workLocation: "Wohnanlage Keltern-Dietlingen"
         },
         items: [
             {
@@ -924,10 +957,12 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Mai 2026",
         servicePeriod: "Mai 2026",
         taxRate: 19,
+        clientType: "privat",
         client: {
             name: "Familie Markus Weber",
             street: "Sonnenhang 14",
-            zipCity: "75179 Pforzheim"
+            zipCity: "75179 Pforzheim",
+            clientType: "privat"
         },
         items: [
             {
@@ -968,10 +1003,14 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "April 2026",
         servicePeriod: "April 2026",
         taxRate: 19,
+        clientType: "firma",
+        workLocation: "Vereinsanlage Niefern",
         client: {
             name: "Gartenfreunde Niefern e.V.",
             street: "Hauptstraße 89",
-            zipCity: "75223 Niefern-Öschelbronn"
+            zipCity: "75223 Niefern-Öschelbronn",
+            clientType: "firma",
+            workLocation: "Vereinsanlage Niefern"
         },
         items: [
             {
@@ -1012,10 +1051,14 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Juli 2026",
         servicePeriod: "Juli 2026",
         taxRate: 19,
+        clientType: "firma",
+        workLocation: "Außenterrasse Dietlingen",
         client: {
             name: "Weingut & Restaurant Dietlingen",
             street: "Weinbergstraße 12",
-            zipCity: "75210 Keltern-Dietlingen"
+            zipCity: "75210 Keltern-Dietlingen",
+            clientType: "firma",
+            workLocation: "Außenterrasse Dietlingen"
         },
         items: [
             {
@@ -1056,10 +1099,12 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Dezember 2025",
         servicePeriod: "November / Dezember 2025",
         taxRate: 19,
+        clientType: "privat",
         client: {
             name: "Sabine & Bernd Hoffmann",
             street: "Birkenweg 5",
-            zipCity: "75217 Birkenfeld"
+            zipCity: "75217 Birkenfeld",
+            clientType: "privat"
         },
         items: [
             {
@@ -1108,10 +1153,14 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "November 2025",
         servicePeriod: "Oktober / November 2025",
         taxRate: 19,
+        clientType: "firma",
+        workLocation: "Gastterrasse Dietlingen",
         client: {
             name: "Weingut & Restaurant Dietlingen",
             street: "Weinbergstraße 12",
-            zipCity: "75210 Keltern-Dietlingen"
+            zipCity: "75210 Keltern-Dietlingen",
+            clientType: "firma",
+            workLocation: "Gastterrasse Dietlingen"
         },
         items: [
             {
@@ -1160,10 +1209,12 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "September 2025",
         servicePeriod: "September 2025",
         taxRate: 19,
+        clientType: "privat",
         client: {
             name: "Michael Kusterer",
             street: "Eichenweg 7",
-            zipCity: "75334 Straubenhardt"
+            zipCity: "75334 Straubenhardt",
+            clientType: "privat"
         },
         items: [
             {
@@ -1204,10 +1255,14 @@ const SEED_INVOICES_ARCHIVE = [
         monthLabel: "Mai 2025",
         servicePeriod: "Mai 2025",
         taxRate: 19,
+        clientType: "firma",
+        workLocation: "Vereinsanlage Niefern",
         client: {
             name: "Gartenfreunde Niefern e.V.",
             street: "Hauptstraße 89",
-            zipCity: "75223 Niefern-Öschelbronn"
+            zipCity: "75223 Niefern-Öschelbronn",
+            clientType: "firma",
+            workLocation: "Vereinsanlage Niefern"
         },
         items: [
             {

@@ -5,6 +5,32 @@
  * Geschäftsführer: Andrei Priala
  */
 
+// Hilfsfunktion zur Erkennung von gewerblichen Kunden / Firmenkunden (B2B)
+if (typeof window.isCompanyClient !== 'function' && typeof isCompanyClient !== 'function') {
+    window.isCompanyClient = function(clientOrName, explicitType) {
+        if (explicitType === 'firma') return true;
+        if (explicitType === 'privat') return false;
+        if (clientOrName && clientOrName.clientType === 'firma') return true;
+        if (clientOrName && clientOrName.clientType === 'privat') return false;
+
+        const name = (typeof clientOrName === 'string' ? clientOrName : (clientOrName && clientOrName.name ? clientOrName.name : '')).trim();
+        if (!name) return false;
+        const lower = name.toLowerCase();
+
+        const companyKeywords = [
+            'gmbh', 'gbr', ' ag', ' ag.', 'ag ', ' ug', 'ug ', 'ohg', ' kg', 'kg.', 'kg ', 'partg', 'kgaa',
+            'e.v.', ' e.v', ' ev ', ' ev.', 'eingetragener verein',
+            'verwaltung', 'hausverwaltung', 'immobilien',
+            'weingut', 'restaurant', 'gaststätte', 'hotel', 'gasthof', 'bistro', 'café', 'cafe',
+            'b2b', 'firma', 'gewerbe', 'gesellschaft', 'betrieb',
+            'autohaus', 'bäckerei', 'metzgerei', 'schreinerei', 'malerbetrieb', 'elektro',
+            'sanitär', 'apotheke', 'praxis', 'kanzlei', 'notariat', 'steuerberater'
+        ];
+
+        return companyKeywords.some(kw => lower.includes(kw));
+    };
+}
+
 // Application State
 let appState = {
     docType: "rechnung", // "rechnung" | "angebot"
@@ -881,10 +907,11 @@ function updateTotals() {
     // Firmenkunden Lohnkosten-Satz auf dem interaktiven Bogen (unterhalb der totalen Berechnung)
     const firmaClauseBox = document.getElementById('doc-firma-wage-clause');
     const firmaClauseText = document.getElementById('doc-firma-wage-clause-text');
+    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     if (firmaClauseBox && firmaClauseText) {
-        if (!isQuote && clientType === 'firma') {
+        if (!isQuote && isCompany) {
             const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
-            firmaClauseText.textContent = `Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.`;
+            firmaClauseText.textContent = `Im Rechnungsbetrag enthaltene Lohnkosten netto von ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.`;
             firmaClauseBox.style.display = 'block';
         } else {
             firmaClauseBox.style.display = 'none';
@@ -902,10 +929,11 @@ function updateTotals() {
 function updateFirmaWageSidebar() {
     const isQuote = appState.docType === "angebot";
     const clientType = appState.clientType || "privat";
+    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     const container = document.getElementById('firma-wage-settings');
     if (!container) return;
 
-    if (!isQuote && clientType === 'firma') {
+    if (!isQuote && isCompany) {
         container.style.display = 'block';
         const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
         const input = document.getElementById('doc-wage-net-input');
@@ -924,7 +952,7 @@ function updateFirmaWageSidebar() {
             badge.style.borderColor = wageCalc.isCustom ? '#fde68a' : '#a7f3d0';
         }
         if (preview) {
-            preview.innerHTML = `<strong>Satz auf Rechnung:</strong><br>„Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.“`;
+            preview.innerHTML = `<strong>Satz auf Rechnung:</strong><br>„Im Rechnungsbetrag enthaltene Lohnkosten netto von ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.“`;
         }
     } else {
         container.style.display = 'none';
@@ -1069,16 +1097,17 @@ function renderAll() {
     }
 
     // Kundentyp Toggle & UI
+    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     const btnTypePrivat = document.getElementById('btn-client-type-privat');
     const btnTypeFirma = document.getElementById('btn-client-type-firma');
     const badgeType = document.getElementById('client-type-indicator-badge');
     const workLocContainer = document.getElementById('firma-work-location-field');
     const workLocInput = document.getElementById('doc-work-location');
 
-    if (btnTypePrivat) btnTypePrivat.classList.toggle('active', clientType !== 'firma');
-    if (btnTypeFirma) btnTypeFirma.classList.toggle('active', clientType === 'firma');
+    if (btnTypePrivat) btnTypePrivat.classList.toggle('active', !isCompany);
+    if (btnTypeFirma) btnTypeFirma.classList.toggle('active', isCompany);
     if (badgeType) {
-        if (clientType === 'firma') {
+        if (isCompany) {
             badgeType.textContent = "Firma / Gewerbekunde";
             badgeType.style.background = "#eff6ff";
             badgeType.style.color = "#1d4ed8";
@@ -1090,11 +1119,11 @@ function renderAll() {
     }
 
     if (workLocContainer) {
-        workLocContainer.style.display = (clientType === 'firma') ? 'block' : 'none';
+        workLocContainer.style.display = isCompany ? 'block' : 'none';
     }
     const docWorkLocRow = document.getElementById('doc-work-location-row');
     if (docWorkLocRow) {
-        docWorkLocRow.style.display = (clientType === 'firma') ? 'block' : 'none';
+        docWorkLocRow.style.display = isCompany ? 'block' : 'none';
     }
     if (workLocInput) {
         workLocInput.value = appState.workLocation || "";
@@ -1104,7 +1133,7 @@ function renderAll() {
     const clientNameInput = document.getElementById('doc-client-name');
     if (clientNameInput) {
         clientNameInput.value = appState.client.name || "";
-        clientNameInput.placeholder = (clientType === 'firma') 
+        clientNameInput.placeholder = isCompany 
             ? "Firmenname / Gewerbebetrieb eingeben (z. B. Mustermann Gartenbau)" 
             : "Kundenname / Firma eingeben (z. B. Familie Weber)";
     }
@@ -1141,7 +1170,7 @@ function renderAll() {
     // Statutory Retention Notice (displayed on Invoices when client is Privatperson)
     const retentionBox = document.getElementById('doc-retention-notice');
     if (retentionBox) {
-        retentionBox.style.display = (!isQuote && clientType !== 'firma') ? 'block' : 'none';
+        retentionBox.style.display = (!isQuote && !isCompany) ? 'block' : 'none';
     }
 
     // Senior Bank Box Reference & Footer Bank Reference
@@ -1212,8 +1241,9 @@ function renderCleanDocument() {
     }
 
     // Statutory retention notice (Required by law for Invoices when client is a Private Person)
+    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     let retentionNoticeHtml = "";
-    if (!isQuote && clientType !== 'firma') {
+    if (!isQuote && !isCompany) {
         retentionNoticeHtml = `
             <div style="margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 12.5px; line-height: 1.45; color: #1e293b;">
                 <strong>Gesetzliche Aufbewahrungspflicht für Privatpersonen:</strong><br>
@@ -1224,11 +1254,11 @@ function renderCleanDocument() {
 
     // Firmenkunden Lohnkosten-Satz (bei Rechnungen für Firmenkunden direkt unter der totalen Euro-Berechnung)
     let firmaWageNoticeHtml = "";
-    if (!isQuote && clientType === 'firma') {
+    if (!isQuote && isCompany) {
         const wageCalc = calculateWageCosts(appState.items, appState.taxRate, appState.customWageNet);
         firmaWageNoticeHtml = `
             <div class="clean-firma-wage-notice">
-                Im Rechnungsbetrag enthaltene Lohnkosten netto ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.
+                Im Rechnungsbetrag enthaltene Lohnkosten netto von ${formatCurrency(wageCalc.wageNet)} zuzüglich ${wageCalc.taxRate} % Mehrwertsteuer (${formatCurrency(wageCalc.wageTax)}), Lohnkosten brutto ${formatCurrency(wageCalc.wageGross)}.
             </div>
         `;
     }
@@ -1331,7 +1361,7 @@ function renderCleanDocument() {
                     <strong class="clean-footer-col-title">Steuerdaten</strong>
                     <div class="clean-footer-row">Steuernummer: 41413-45017</div>
                     <div class="clean-footer-row">USt-IdNr.: Gemäß § 19 / § 14 UStG</div>
-                    <div class="clean-footer-row">Finanzamt Mühlacker</div>
+                    <div class="clean-footer-row">Finanzamt Pforzheim</div>
                 </div>
                 <div>
                     <strong class="clean-footer-col-title">Geschäftsführer & Kontakt</strong>
@@ -1499,7 +1529,14 @@ function setupEventListeners() {
     // Direct Inputs on Document
     document.getElementById('doc-client-name')?.addEventListener('input', (e) => {
         appState.client.name = e.target.value;
-        renderCleanDocument();
+        if (appState.clientType !== 'firma' && typeof isCompanyClient === 'function' && isCompanyClient(e.target.value)) {
+            appState.clientType = 'firma';
+            if (!appState.client) appState.client = {};
+            appState.client.clientType = 'firma';
+            renderAll();
+        } else {
+            renderCleanDocument();
+        }
         saveState();
     });
     document.getElementById('doc-work-location')?.addEventListener('input', (e) => {
@@ -2002,13 +2039,23 @@ window.getInvoicesArchive = function() {
         }
     }
 
-    // Normalization safeguard: ensure totalNet, totalTax, totalGross are numeric and present
+    // Normalization safeguard: ensure totalNet, totalTax, totalGross and clientType are present
     return list.map(inv => {
         const net = parseFloat(inv.totalNet ?? inv.netTotal ?? 0) || 0;
         const tax = parseFloat(inv.totalTax ?? inv.taxAmount ?? 0) || 0;
         const gross = parseFloat(inv.totalGross ?? inv.grossTotal ?? (net + tax)) || 0;
+        
+        let cType = inv.clientType || (inv.client && inv.client.clientType);
+        if (!cType) {
+            cType = (typeof isCompanyClient === 'function' && isCompanyClient(inv.client, inv.clientType)) ? 'firma' : 'privat';
+        } else if (cType !== 'firma' && typeof isCompanyClient === 'function' && isCompanyClient(inv.client)) {
+            cType = 'firma';
+        }
+
         return {
             ...inv,
+            clientType: cType,
+            client: inv.client ? { ...inv.client, clientType: cType } : { clientType: cType },
             totalNet: net,
             netTotal: net,
             totalTax: tax,
@@ -2226,7 +2273,7 @@ window.editInvoiceInGenerator = function(invoiceId) {
     appState.docDate = normalizeToGermanDate(invoice.docDate);
     appState.servicePeriod = invoice.servicePeriod || "";
     appState.taxRate = invoice.taxRate || 19;
-    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || "privat";
+    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || ((typeof isCompanyClient === 'function' && isCompanyClient(invoice.client)) ? "firma" : "privat");
     appState.workLocation = invoice.workLocation || (invoice.client && invoice.client.workLocation) || "";
     appState.customWageNet = invoice.customWageNet !== undefined ? invoice.customWageNet : null;
     appState.client = {
@@ -3462,7 +3509,7 @@ window.renderDunningLetterPreview = function() {
             <div>
                 <strong style="color: #334155;">Steuerdaten:</strong><br>
                 Steuernummer: 41413-45017<br>
-                Finanzamt Mühlacker<br>
+                Finanzamt Pforzheim<br>
                 Amtsgericht Mannheim
             </div>
             <div>
@@ -3895,7 +3942,7 @@ window.exportInvoicesToZipArchive = async function(invoices, archiveTitle, archi
             appState.docDate = inv.docDate || "";
             appState.servicePeriod = inv.servicePeriod || "";
             appState.taxRate = inv.taxRate !== undefined ? inv.taxRate : 19;
-            appState.clientType = inv.clientType || (inv.client && inv.client.clientType) || 'privat';
+            appState.clientType = inv.clientType || (inv.client && inv.client.clientType) || ((typeof isCompanyClient === 'function' && isCompanyClient(inv.client)) ? 'firma' : 'privat');
             appState.workLocation = inv.workLocation || (inv.client && inv.client.workLocation) || '';
             appState.customWageNet = inv.customWageNet !== undefined ? inv.customWageNet : null;
             appState.client = {
@@ -4942,7 +4989,7 @@ window.downloadInvoicePdfDirect = function(invoiceId) {
     appState.docDate = invoice.docDate;
     appState.servicePeriod = invoice.servicePeriod || "";
     appState.taxRate = invoice.taxRate || 19;
-    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || "privat";
+    appState.clientType = invoice.clientType || (invoice.client && invoice.client.clientType) || ((typeof isCompanyClient === 'function' && isCompanyClient(invoice.client)) ? "firma" : "privat");
     appState.workLocation = invoice.workLocation || (invoice.client && invoice.client.workLocation) || "";
     appState.customWageNet = invoice.customWageNet !== undefined ? invoice.customWageNet : null;
     appState.client = { ...invoice.client };
