@@ -1128,6 +1128,10 @@ function renderAll() {
     if (workLocInput) {
         workLocInput.value = appState.workLocation || "";
     }
+    const sheetWorkLocInput = document.getElementById('doc-sheet-work-location');
+    if (sheetWorkLocInput) {
+        sheetWorkLocInput.value = appState.workLocation || "";
+    }
 
     // Client Fields
     const clientNameInput = document.getElementById('doc-client-name');
@@ -1230,18 +1234,18 @@ function renderCleanDocument() {
         });
     }
 
-    // Work location badge (prominently placed above company name when client is a Firma)
+    // Work location (nur die reine Adresse ohne Präfix / Label)
+    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     let workLocationHtml = "";
-    if (clientType === 'firma' && (appState.workLocation || '').trim()) {
+    if (isCompany && (appState.workLocation || '').trim()) {
         workLocationHtml = `
-            <div style="margin-bottom: 6px; padding: 4px 8px; background: #f0f9ff; border-left: 3px solid #0284c7; font-size: 12px; color: #0369a1; font-weight: 600;">
-                📍 Ausführungsort: ${escapeHtml(appState.workLocation)}
+            <div style="font-size: 14px; color: #1e293b; margin-bottom: 2px; white-space: pre-line;">
+                ${escapeHtml(appState.workLocation)}
             </div>
         `;
     }
 
     // Statutory retention notice (Required by law for Invoices when client is a Private Person)
-    const isCompany = clientType === 'firma' || (typeof isCompanyClient === 'function' && isCompanyClient(appState.client, clientType));
     let retentionNoticeHtml = "";
     if (!isQuote && !isCompany) {
         retentionNoticeHtml = `
@@ -1540,6 +1544,9 @@ function setupEventListeners() {
         saveState();
     });
     document.getElementById('doc-work-location')?.addEventListener('input', (e) => {
+        handleWorkLocationChange(e.target.value);
+    });
+    document.getElementById('doc-sheet-work-location')?.addEventListener('input', (e) => {
         handleWorkLocationChange(e.target.value);
     });
     document.getElementById('btn-client-type-privat')?.addEventListener('click', () => {
@@ -4244,6 +4251,10 @@ window.setClientType = function(type) {
 window.handleWorkLocationChange = function(val) {
     appState.workLocation = val;
     if (appState.client) appState.client.workLocation = val;
+    const sidebarInput = document.getElementById('doc-work-location');
+    if (sidebarInput && sidebarInput.value !== val) sidebarInput.value = val;
+    const sheetInput = document.getElementById('doc-sheet-work-location');
+    if (sheetInput && sheetInput.value !== val) sheetInput.value = val;
     renderCleanDocument();
     saveState();
 };

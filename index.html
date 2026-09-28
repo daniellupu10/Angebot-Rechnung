@@ -1291,9 +1291,9 @@
                 </div>
                 <div id="firma-work-location-field" style="display: none; margin-top: 8px;">
                     <label for="doc-work-location" style="display: block; font-size: 11px; font-weight: 700; color: #0369a1; margin-bottom: 3px;">
-                        📍 Einsatzort / Ausführungsort:
+                        Einsatzort / Adresse:
                     </label>
-                    <input type="text" id="doc-work-location" class="neu-input" style="font-size: 12px; padding: 6px 8px; width: 100%; box-sizing: border-box;" placeholder="z. B. Baustelle Siemensstraße 12..." oninput="handleWorkLocationChange(this.value)">
+                    <input type="text" id="doc-work-location" class="neu-input" style="font-size: 12px; padding: 6px 8px; width: 100%; box-sizing: border-box;" placeholder="z. B. Siemensstraße 12, 75179 Pforzheim" oninput="handleWorkLocationChange(this.value)">
                 </div>
 
                 <!-- Firmenkunden Lohnkosten-Aufteilung & Satz-Steuerung -->
@@ -1382,8 +1382,8 @@
                     </div>
 
                     <!-- Ausführungsort / Einsatzort (eingeblendet für Firmenkunden direkt über dem Namen) -->
-                    <div id="doc-work-location-row" style="display: none; margin-bottom: 6px;">
-                        <input type="text" id="doc-work-location" class="inline-doc-input" style="color: #0369a1; font-weight: 600; border-color: #bae6fd; background: #f0f9ff;" placeholder="📍 Ausführungsort / Einsatzort (z. B. Baustelle Siemensstraße 12)">
+                    <div id="doc-work-location-row" style="display: none; margin-bottom: 2px;">
+                        <input type="text" id="doc-sheet-work-location" class="inline-doc-input" placeholder="Adresse / Einsatzort (z. B. Siemensstraße 12)" oninput="handleWorkLocationChange(this.value)">
                     </div>
 
                     <div>
