@@ -1370,7 +1370,7 @@ function renderCleanDocument() {
                 <div>
                     <strong class="clean-footer-col-title">Geschäftsführer & Kontakt</strong>
                     <div class="clean-footer-row">Andrei Priala</div>
-                    <div class="clean-footer-row">Tel: 07231 466641 | Mobil: 0176 12345678</div>
+                    <div class="clean-footer-row">Tel: 07231 466641</div>
                     <div class="clean-footer-row">Email: gartenbauu@gmail.com</div>
                 </div>
             </div>
@@ -3522,7 +3522,7 @@ window.renderDunningLetterPreview = function() {
             <div>
                 <strong style="color: #334155;">Geschäftsleitung & Kontakt:</strong><br>
                 Geschäftsführer: Andrei Priala<br>
-                Tel: 07231 466641 | Mobil: 0176 12345678<br>
+                Tel: 07231 466641<br>
                 E-Mail: gartenbauu@gmail.com
             </div>
         </div>
