@@ -34,6 +34,7 @@ const ARCHIVE_KEY = 'palnau_invoices_archive';
 const DELETED_KEY = 'palnau_deleted_invoices';
 const LOANS_KEY = 'palnau_loans_data';
 const CATALOG_KEY = 'palnau_custom_catalog';
+const WORKTIME_KEY = 'palnau_worktime_data_v1';
 const SYNC_META_KEY = 'palnau_last_sync_meta';
 
 // Unique Device ID for this browser session to distinguish local vs remote changes
@@ -108,16 +109,40 @@ function applyRemoteDataToLocal(remoteData) {
         const remoteDeleted = Array.isArray(remoteData.deletedInvoices) ? remoteData.deletedInvoices : [];
         localStorage.setItem(DELETED_KEY, JSON.stringify(remoteDeleted));
 
-        // 2. Process Invoices Archive - Cloud is the authoritative source of truth
+        // 2. Process Invoices Archive - Cloud is the authoritative source of truth, merging paid status
         const remoteArchive = Array.isArray(remoteData.invoicesArchive) ? remoteData.invoicesArchive : [];
         const deletedSet = new Set(remoteDeleted.map(String));
         
-        // Filter out any explicitly deleted records
+        let localPaidRegistry = {};
+        try {
+            const rawReg = localStorage.getItem('palnau_paid_invoices_registry');
+            if (rawReg) localPaidRegistry = JSON.parse(rawReg) || {};
+        } catch(e) {}
+
+        const remotePaidRegistry = (remoteData.paidInvoicesRegistry && typeof remoteData.paidInvoicesRegistry === 'object') ? remoteData.paidInvoicesRegistry : {};
+        const mergedPaidRegistry = { ...remotePaidRegistry, ...localPaidRegistry };
+        localStorage.setItem('palnau_paid_invoices_registry', JSON.stringify(mergedPaidRegistry));
+
+        // Filter out any explicitly deleted records and preserve paid status
         const finalArchive = remoteArchive.filter(inv => {
             if (!inv || !inv.id) return false;
             const idStr = String(inv.id);
             const numStr = String(inv.docNumber || '');
             return !deletedSet.has(idStr) && !deletedSet.has(numStr);
+        }).map(inv => {
+            const idStr = String(inv.id);
+            const numStr = String(inv.docNumber || '');
+            const isRegPaid = mergedPaidRegistry[idStr]?.paid || mergedPaidRegistry[numStr]?.paid;
+            if (isRegPaid || inv.status === 'bezahlt' || inv.paymentStatus === 'bezahlt' || inv.isPaid === true) {
+                return {
+                    ...inv,
+                    paymentStatus: 'bezahlt',
+                    status: 'bezahlt',
+                    isPaid: true,
+                    paidAt: inv.paidAt || mergedPaidRegistry[idStr]?.paidAt || mergedPaidRegistry[numStr]?.paidAt || new Date().toLocaleDateString('de-DE')
+                };
+            }
+            return inv;
         });
 
         // Store authoritative archive into local storage
@@ -133,6 +158,11 @@ function applyRemoteDataToLocal(remoteData) {
         // 4. Process Custom Catalog
         if (Array.isArray(remoteData.customCatalog)) {
             localStorage.setItem(CATALOG_KEY, JSON.stringify(remoteData.customCatalog));
+        }
+
+        // 5. Process Worktime Data
+        if (remoteData.worktimeData && typeof remoteData.worktimeData === 'object') {
+            localStorage.setItem(WORKTIME_KEY, JSON.stringify(remoteData.worktimeData));
         }
 
         lastSyncTimestamp = new Date();
@@ -199,11 +229,25 @@ export function pushLocalToCloud(immediate = false) {
                 if (rawCat) customCatalog = JSON.parse(rawCat) || [];
             } catch (e) {}
 
+            let worktimeData = null;
+            try {
+                const rawWt = localStorage.getItem(WORKTIME_KEY);
+                if (rawWt) worktimeData = JSON.parse(rawWt);
+            } catch (e) {}
+
+            let paidInvoicesRegistry = {};
+            try {
+                const rawReg = localStorage.getItem('palnau_paid_invoices_registry');
+                if (rawReg) paidInvoicesRegistry = JSON.parse(rawReg) || {};
+            } catch (e) {}
+
             const payload = {
                 invoicesArchive,
                 deletedInvoices,
                 loanData,
                 customCatalog,
+                worktimeData,
+                paidInvoicesRegistry,
                 lastUpdated: new Date().toISOString(),
                 lastUpdatedBy: DEVICE_ID,
                 userAgent: navigator.userAgent.substring(0, 120),

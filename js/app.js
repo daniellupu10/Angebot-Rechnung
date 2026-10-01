@@ -162,6 +162,56 @@ window.executeAppConfirmOk = function(e) {
     }
 };
 
+// ==========================================================================
+// MINIMALIST 3-DOTS ACTION DROPDOWN MENUS (ARBEITSZEIT & AUSGABEN)
+// ==========================================================================
+
+window.toggleActionMenu = function(event, menuId) {
+    if (event) {
+        try {
+            event.stopPropagation();
+            event.preventDefault();
+        } catch (e) {}
+    }
+    const targetMenu = document.getElementById(menuId);
+    if (!targetMenu) return;
+
+    const isAlreadyOpen = targetMenu.classList.contains('show');
+
+    // Close all other open dropdowns first
+    window.closeAllActionMenus();
+
+    if (!isAlreadyOpen) {
+        targetMenu.classList.add('show');
+        const trigger = targetMenu.previousElementSibling;
+        if (trigger && trigger.classList.contains('neu-action-menu-trigger')) {
+            trigger.classList.add('active');
+        }
+    }
+};
+
+window.closeAllActionMenus = function() {
+    document.querySelectorAll('.neu-action-menu-dropdown.show').forEach(m => {
+        m.classList.remove('show');
+    });
+    document.querySelectorAll('.neu-action-menu-trigger.active').forEach(b => {
+        b.classList.remove('active');
+    });
+};
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.neu-action-menu-wrap')) {
+        window.closeAllActionMenus();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        window.closeAllActionMenus();
+    }
+});
+
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
     try { checkAuthOnLoad(); } catch (e) { console.warn("checkAuthOnLoad:", e); }
@@ -183,6 +233,7 @@ window.onPalnauCloudDataUpdated = function(info) {
         if (typeof renderQuartersView === 'function') renderQuartersView();
         if (typeof renderERechnungHub === 'function') renderERechnungHub();
         if (typeof renderLoansView === 'function') renderLoansView();
+        if (typeof renderWorktimeView === 'function') renderWorktimeView();
         if (typeof renderCatalogView === 'function') renderCatalogView();
 
         // If an invoice is currently open in the generator, verify it still exists or was updated
@@ -1915,7 +1966,9 @@ window.switchAppView = function(viewName) {
         'catalog': document.getElementById('app-catalog-view'),
         'clients': document.getElementById('app-clients-view'),
         'quarters': document.getElementById('app-quarters-view'),
-        'loans': document.getElementById('app-loans-view')
+        'loans': document.getElementById('app-loans-view'),
+        'worktime': document.getElementById('app-worktime-view'),
+        'expenses': document.getElementById('app-expenses-view')
     };
 
     // Hide all views first
@@ -1967,6 +2020,16 @@ window.switchAppView = function(viewName) {
             renderLoansView();
         }
         updateAllAppStatesAndBadges();
+    } else if (viewName === 'worktime') {
+        if (typeof renderWorktimeView === 'function') {
+            renderWorktimeView();
+        }
+        updateAllAppStatesAndBadges();
+    } else if (viewName === 'expenses') {
+        if (typeof renderExpensesView === 'function') {
+            renderExpensesView();
+        }
+        updateAllAppStatesAndBadges();
     }
 
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -2005,6 +2068,49 @@ function unmarkInvoiceAsDeleted(id, docNumber) {
     if (id) set.delete(String(id));
     if (docNumber) set.delete(String(docNumber));
     localStorage.setItem(DELETED_INVOICES_KEY, JSON.stringify(Array.from(set)));
+}
+
+// ==========================================================================
+// PAID STATUS PERSISTENCE REGISTRY (GARANTIERT DAUERHAFTEN BEZAHLT-STATUS)
+// ==========================================================================
+const PAID_INVOICES_REGISTRY_KEY = 'palnau_paid_invoices_registry';
+
+function getPaidInvoicesRegistry() {
+    try {
+        const raw = localStorage.getItem(PAID_INVOICES_REGISTRY_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch(e) {
+        return {};
+    }
+}
+
+function savePaidInvoicesRegistry(registry) {
+    try {
+        localStorage.setItem(PAID_INVOICES_REGISTRY_KEY, JSON.stringify(registry));
+    } catch(e) {
+        console.error("Error saving paid invoices registry", e);
+    }
+}
+
+function markInvoiceInPaidRegistry(id, docNumber, paidAt) {
+    const reg = getPaidInvoicesRegistry();
+    const entry = {
+        paid: true,
+        paidAt: paidAt || new Date().toLocaleDateString('de-DE'),
+        updatedAt: new Date().toISOString()
+    };
+    if (id) reg[String(id)] = entry;
+    if (docNumber) reg[String(docNumber)] = entry;
+    savePaidInvoicesRegistry(reg);
+}
+
+function unmarkInvoiceInPaidRegistry(id, docNumber) {
+    const reg = getPaidInvoicesRegistry();
+    if (id) delete reg[String(id)];
+    if (docNumber) delete reg[String(docNumber)];
+    savePaidInvoicesRegistry(reg);
 }
 
 window.getInvoicesArchive = function() {
@@ -2046,6 +2152,33 @@ window.getInvoicesArchive = function() {
         }
     }
 
+    // Unveränderlicher Bezahlstatus-Schutz über die Registry
+    const paidRegistry = getPaidInvoicesRegistry();
+    let archiveModified = false;
+
+    list.forEach(inv => {
+        const regEntry = paidRegistry[String(inv.id)] || (inv.docNumber && paidRegistry[String(inv.docNumber)]);
+        if (regEntry && regEntry.paid) {
+            if (inv.paymentStatus !== 'bezahlt' || inv.status !== 'bezahlt' || !inv.isPaid) {
+                inv.paymentStatus = 'bezahlt';
+                inv.status = 'bezahlt';
+                inv.isPaid = true;
+                inv.paidAt = inv.paidAt || regEntry.paidAt || new Date().toLocaleDateString('de-DE');
+                archiveModified = true;
+            }
+        } else if (inv.paymentStatus === 'bezahlt' || inv.status === 'bezahlt' || inv.isPaid === true) {
+            paidRegistry[String(inv.id)] = { paid: true, paidAt: inv.paidAt || new Date().toLocaleDateString('de-DE') };
+            if (inv.docNumber) paidRegistry[String(inv.docNumber)] = { paid: true, paidAt: inv.paidAt || new Date().toLocaleDateString('de-DE') };
+            savePaidInvoicesRegistry(paidRegistry);
+        }
+    });
+
+    if (archiveModified) {
+        try {
+            localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(list));
+        } catch(e) {}
+    }
+
     // Normalization safeguard: ensure totalNet, totalTax, totalGross and clientType are present
     return list.map(inv => {
         const net = parseFloat(inv.totalNet ?? inv.netTotal ?? 0) || 0;
@@ -2078,9 +2211,31 @@ window.saveInvoiceToArchive = function(invoiceData) {
     const archive = getInvoicesArchive();
     const existingIndex = archive.findIndex(inv => inv.id === invoiceData.id || inv.docNumber === invoiceData.docNumber);
 
+    const paidRegistry = getPaidInvoicesRegistry();
+    const isRegisteredPaid = paidRegistry[String(invoiceData.id)]?.paid || (invoiceData.docNumber && paidRegistry[String(invoiceData.docNumber)]?.paid);
+
     if (existingIndex >= 0) {
+        const existing = archive[existingIndex];
+        const wasPaid = (existing.paymentStatus === 'bezahlt' || existing.status === 'bezahlt' || existing.isPaid === true || isRegisteredPaid);
+        
+        // Bezahlt-Status niemals überschreiben, außer es wurde explizit auf 'offen' geändert
+        if (wasPaid && invoiceData.paymentStatus !== 'offen' && invoiceData.status !== 'offen') {
+            invoiceData.paymentStatus = 'bezahlt';
+            invoiceData.status = 'bezahlt';
+            invoiceData.isPaid = true;
+            if (existing.paidAt && !invoiceData.paidAt) invoiceData.paidAt = existing.paidAt;
+            if (existing.wasMahnungResolved) invoiceData.wasMahnungResolved = true;
+            markInvoiceInPaidRegistry(invoiceData.id, invoiceData.docNumber, invoiceData.paidAt);
+        }
+
         archive[existingIndex] = { ...archive[existingIndex], ...invoiceData, updatedAt: new Date().toISOString() };
     } else {
+        if (isRegisteredPaid && invoiceData.paymentStatus !== 'offen' && invoiceData.status !== 'offen') {
+            invoiceData.paymentStatus = 'bezahlt';
+            invoiceData.status = 'bezahlt';
+            invoiceData.isPaid = true;
+            invoiceData.paidAt = paidRegistry[String(invoiceData.id)]?.paidAt || new Date().toLocaleDateString('de-DE');
+        }
         archive.unshift({ ...invoiceData, createdAt: new Date().toISOString() });
     }
 
@@ -2096,6 +2251,13 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
     const totals = calculateTotals();
     const invoiceId = appState.activeArchiveId || ('inv-' + Date.now());
     appState.activeArchiveId = invoiceId;
+
+    const archive = getInvoicesArchive();
+    const existing = archive.find(inv => inv.id === invoiceId || (appState.docNumber && inv.docNumber === appState.docNumber));
+    const paidRegistry = getPaidInvoicesRegistry();
+    const wasPaid = (existing && (existing.paymentStatus === 'bezahlt' || existing.status === 'bezahlt' || existing.isPaid)) ||
+                    paidRegistry[String(invoiceId)]?.paid ||
+                    (appState.docNumber && paidRegistry[String(appState.docNumber)]?.paid);
 
     const invoiceRecord = {
         id: invoiceId,
@@ -2119,7 +2281,10 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
         totalNet: totals.netTotal,
         totalTax: totals.taxAmount,
         totalGross: totals.grossTotal,
-        status: "ausgestellt"
+        status: wasPaid ? "bezahlt" : (existing ? (existing.status || "ausgestellt") : "ausgestellt"),
+        paymentStatus: wasPaid ? "bezahlt" : (existing ? (existing.paymentStatus || "offen") : "offen"),
+        isPaid: Boolean(wasPaid),
+        paidAt: wasPaid ? (existing?.paidAt || paidRegistry[String(invoiceId)]?.paidAt || new Date().toLocaleDateString('de-DE')) : undefined
     };
 
     saveInvoiceToArchive(invoiceRecord);
@@ -2441,6 +2606,42 @@ window.updateAllAppStatesAndBadges = function() {
         if (bLoans) bLoans.textContent = `${formatCurrency(totalRemaining)} frei`;
     }
 
+    // Worktime Badge
+    if (typeof getWorktimeData === 'function') {
+        const wtData = getWorktimeData();
+        const activeEmployees = (wtData.employees || []).filter(e => e.status !== 'inactive');
+        let totalBalance = 0;
+        activeEmployees.forEach(emp => {
+            const empEntries = (wtData.entries || []).filter(e => e.employeeId === emp.id);
+            const aufbau = empEntries.filter(e => e.type === 'aufbau').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+            const abbau = empEntries.filter(e => e.type === 'abbau' || e.type === 'auszahlung').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+            totalBalance += (parseFloat(emp.initialBalance) || 0) + aufbau - abbau;
+        });
+        const bWorktime = document.getElementById('launcher-worktime-badge');
+        if (bWorktime) {
+            const sign = totalBalance > 0 ? '+' : '';
+            bWorktime.textContent = `${sign}${totalBalance.toFixed(1).replace('.', ',')} Std.`;
+        }
+    }
+
+    // Expenses Badge
+    if (typeof getExpensesData === 'function') {
+        const expData = getExpensesData();
+        const activeMonth = (typeof expensesSelectedMonth !== 'undefined') ? expensesSelectedMonth : '03';
+        const activeYear = (typeof expensesSelectedYear !== 'undefined') ? expensesSelectedYear : 2026;
+        let monthTotal = 0;
+        if (typeof getExpensesForMonth === 'function') {
+            const mExp = getExpensesForMonth(activeYear, activeMonth);
+            monthTotal = mExp.totalGross;
+        } else {
+            monthTotal = (expData.recurring || []).filter(r => r.active !== false).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+        }
+        const bExpenses = document.getElementById('launcher-expenses-badge');
+        if (bExpenses) {
+            bExpenses.textContent = `${formatCurrency(monthTotal)}`;
+        }
+    }
+
     // 2. Universal Top Navigation Segmented Tab Badges across all screens
     document.querySelectorAll('.tab-badge-overview').forEach(el => {
         el.textContent = String(totalCount);
@@ -2463,6 +2664,10 @@ window.updateAllAppStatesAndBadges = function() {
             renderERechnungHub();
         } else if (currentActiveView === 'loans' && typeof renderLoansView === 'function') {
             renderLoansView();
+        } else if (currentActiveView === 'worktime' && typeof renderWorktimeView === 'function') {
+            renderWorktimeView();
+        } else if (currentActiveView === 'expenses' && typeof renderExpensesView === 'function') {
+            renderExpensesView();
         }
     }
 };
@@ -2752,12 +2957,15 @@ window.toggleInvoicePaidStatus = function(invId, explicitPaid) {
         inv.isPaid = false;
         delete inv.paidAt;
         delete inv.wasMahnungResolved;
+        unmarkInvoiceInPaidRegistry(inv.id, inv.docNumber);
         showToast(`Rechnung ${inv.docNumber} wieder als "Offen" markiert`);
     } else {
+        const paidDate = new Date().toLocaleDateString('de-DE');
         inv.paymentStatus = 'bezahlt';
         inv.status = 'bezahlt';
         inv.isPaid = true;
-        inv.paidAt = new Date().toLocaleDateString('de-DE');
+        inv.paidAt = paidDate;
+        markInvoiceInPaidRegistry(inv.id, inv.docNumber, paidDate);
         if (wasInMahnung) {
             inv.wasMahnungResolved = true;
             showToast(`Rechnung ${inv.docNumber} als bezahlt verbucht ✓ Mahnung aufgehoben!`);
@@ -2767,7 +2975,13 @@ window.toggleInvoicePaidStatus = function(invId, explicitPaid) {
     }
 
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+    updateAllAppStatesAndBadges();
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud(true);
+    }
     renderOverviewInvoices();
+    if (typeof renderQuartersView === 'function') renderQuartersView();
+    if (typeof renderPowerBiDashboard === 'function' && currentActiveView === 'quarters') renderPowerBiDashboard();
 };
 
 window.renderOverviewInvoices = function() {
@@ -3652,6 +3866,7 @@ window.markSelectedInvoicesAsPaid = function() {
     const archive = getInvoicesArchive();
     let updatedCount = 0;
     let mahnungResolvedCount = 0;
+    const paidDate = new Date().toLocaleDateString('de-DE');
 
     archive.forEach(inv => {
         if (selectedIds.has(String(inv.id)) || selectedIds.has(String(inv.docNumber))) {
@@ -3664,7 +3879,8 @@ window.markSelectedInvoicesAsPaid = function() {
                 inv.paymentStatus = 'bezahlt';
                 inv.status = 'bezahlt';
                 inv.isPaid = true;
-                inv.paidAt = new Date().toLocaleDateString('de-DE');
+                inv.paidAt = paidDate;
+                markInvoiceInPaidRegistry(inv.id, inv.docNumber, paidDate);
                 updatedCount++;
             }
         }
@@ -3672,7 +3888,13 @@ window.markSelectedInvoicesAsPaid = function() {
 
     if (updatedCount > 0) {
         localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(archive));
+        updateAllAppStatesAndBadges();
+        if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+            window.PalnauCloudSync.pushLocalToCloud(true);
+        }
         renderOverviewInvoices();
+        if (typeof renderQuartersView === 'function') renderQuartersView();
+        if (typeof renderPowerBiDashboard === 'function' && currentActiveView === 'quarters') renderPowerBiDashboard();
         if (mahnungResolvedCount > 0) {
             showToast(`${updatedCount} Beleg(e) als bezahlt verbucht (${mahnungResolvedCount} Mahnung(en) erledigt) ✓`);
         } else {
@@ -5841,15 +6063,76 @@ window.showInvoicesForClient = function(clientName) {
 // Quarterly breakdowns, VAT liabilities and year/quarter aggregations
 // ==========================================================================
 
+// ==========================================================================
+// APP 5: FINANZ-DASHBOARD, POWER BI CONTROLLING & MONATSRECHNUNG
+// ==========================================================================
+let finActiveSubTab = 'dashboard'; // 'dashboard' | 'monthly' | 'quarters'
+let finSelectedMonth = 'all'; // 'all' | '01' | '02' ... '12'
 let quartersSelectedYear = 2026;
 const openQuarterRows = new Set();
 
+const GERMAN_MONTH_NAMES = [
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember"
+];
+const GERMAN_MONTH_SHORT = [
+    "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+    "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"
+];
+
+window.switchFinSubTab = function(tab) {
+    finActiveSubTab = tab;
+    const btnDash = document.getElementById('btn-fin-tab-dashboard');
+    const btnMonth = document.getElementById('btn-fin-tab-monthly');
+    const btnQuart = document.getElementById('btn-fin-tab-quarters');
+
+    const viewDash = document.getElementById('fin-tab-view-dashboard');
+    const viewMonth = document.getElementById('fin-tab-view-monthly');
+    const viewQuart = document.getElementById('fin-tab-view-quarters');
+
+    if (btnDash) btnDash.classList.toggle('active', tab === 'dashboard');
+    if (btnMonth) btnMonth.classList.toggle('active', tab === 'monthly');
+    if (btnQuart) btnQuart.classList.toggle('active', tab === 'quarters');
+
+    if (viewDash) viewDash.style.display = tab === 'dashboard' ? 'block' : 'none';
+    if (viewMonth) viewMonth.style.display = tab === 'monthly' ? 'block' : 'none';
+    if (viewQuart) viewQuart.style.display = tab === 'quarters' ? 'block' : 'none';
+
+    const hTitle = document.getElementById('fin-header-title');
+    const hSub = document.getElementById('fin-header-subtitle');
+    if (hTitle && hSub) {
+        if (tab === 'dashboard') {
+            hTitle.textContent = "Finanz-Dashboard & Power BI Controlling";
+            hSub.textContent = "Visuelle Monatsanalysen • Säulendiagramme & KPIs • Palnau Gartenbau GmbH";
+        } else if (tab === 'monthly') {
+            hTitle.textContent = "Monats-Rechnung & Beleg-Journal";
+            hSub.textContent = "Vollständige Monatsabrechnung aller Ausgangsrechnungen • Druckfertiger Abrechnungsbogen";
+        } else {
+            hTitle.textContent = "Finanz-Quartale & USt-Voranmeldung";
+            hSub.textContent = "Fiskalisches Buchungsjournal nach UStG • Finanzamt Pforzheim (St.-Nr.: 41413-45017) • 19% Regelbesteuerung";
+        }
+    }
+
+    renderQuartersView();
+};
+
+window.setFinMonthFilter = function(month, btn) {
+    finSelectedMonth = month;
+    const pills = document.querySelectorAll('#fin-month-pills .neu-filter-pill');
+    pills.forEach(p => {
+        const oc = p.getAttribute('onclick') || '';
+        p.classList.toggle('active', oc.includes(`'${month}'`));
+    });
+    renderQuartersView();
+};
+
 window.setQuartersYearFilter = function(year, btn) {
     quartersSelectedYear = year;
-    if (btn && btn.parentElement) {
-        Array.from(btn.parentElement.children).forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-    }
+    const pills = document.querySelectorAll('#quarters-year-pills .neu-filter-pill');
+    pills.forEach(p => {
+        const oc = p.getAttribute('onclick') || '';
+        p.classList.toggle('active', oc.includes(`'${year}'`) || (year === 2026 && oc.includes('2026')));
+    });
     renderQuartersView();
 };
 
@@ -5862,17 +6145,807 @@ window.toggleQuarterInvoicesRow = function(qIdx) {
     renderQuartersView();
 };
 
-window.renderQuartersView = function() {
+function getFilteredFinInvoices() {
+    const archive = getInvoicesArchive();
+    let invoices = archive.filter(inv => inv.docType !== 'angebot');
+
+    if (quartersSelectedYear !== 'all') {
+        const targetYear = parseInt(quartersSelectedYear, 10);
+        invoices = invoices.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getFullYear() === targetYear;
+        });
+    }
+
+    if (finSelectedMonth !== 'all') {
+        const targetMonthIdx = parseInt(finSelectedMonth, 10) - 1;
+        invoices = invoices.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getMonth() === targetMonthIdx;
+        });
+    }
+
+    return invoices;
+}
+
+window.toggleInvoicePaymentStatus = function(invId) {
+    if (typeof toggleInvoicePaidStatus === 'function') {
+        toggleInvoicePaidStatus(invId);
+    }
+};
+
+// ==========================================================================
+// RENDER SUBVIEW 1: POWER BI DASHBOARD (WITH AUSGABEN VERRECHNUNG & ERGEBNIS)
+// ==========================================================================
+function renderPowerBiDashboard() {
+    const archive = getInvoicesArchive();
+    const actualInvoices = archive.filter(inv => inv.docType !== 'angebot');
+
+    const curYear = (quartersSelectedYear === 'all') ? 2026 : parseInt(quartersSelectedYear, 10);
+
+    // Year-filtered for annual calculations and chart
+    const yearFiltered = (quartersSelectedYear === 'all')
+        ? actualInvoices
+        : actualInvoices.filter(inv => parseGermanDate(inv.docDate).getFullYear() === parseInt(quartersSelectedYear, 10));
+
+    // Fully filtered for selected month & year
+    const filteredInvoices = getFilteredFinInvoices();
+
+    // 1. Compute Revenue (Einnahmen)
+    const sumGross = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+    const sumNet = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+    const sumTax = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
+    const countInvoices = filteredInvoices.length;
+
+    // Unique clients in period
+    const uniqueClients = new Set();
+    filteredInvoices.forEach(inv => {
+        if (inv.client && inv.client.name) uniqueClients.add(inv.client.name.trim());
+    });
+
+    // Average ticket
+    const avgNet = countInvoices > 0 ? (sumNet / countInvoices) : 0;
+    const avgGross = countInvoices > 0 ? (sumGross / countInvoices) : 0;
+
+    // Payment / Cashflow status
+    const paidInvoices = filteredInvoices.filter(i => {
+        const st = (i.paymentStatus || i.status || '').toLowerCase();
+        return st === 'bezahlt';
+    });
+    const paidGross = paidInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+    const openGross = sumGross - paidGross;
+    const paidRatePct = sumGross > 0 ? Math.round((paidGross / sumGross) * 100) : 100;
+
+    // 2. Compute Expenses (Betriebsausgaben & Monatsabweichungen)
+    let periodExpenses = {
+        totalGross: 0,
+        totalNet: 0,
+        estimatedVat: 0,
+        recurringTotal: 0,
+        deviationsTotal: 0,
+        recurringList: [],
+        deviationsList: [],
+        categoryBreakdown: {}
+    };
+
+    if (typeof getExpensesForMonth === 'function') {
+        if (finSelectedMonth !== 'all') {
+            periodExpenses = getExpensesForMonth(curYear, finSelectedMonth);
+        } else {
+            if (typeof getExpensesForYear === 'function') {
+                const yExp = getExpensesForYear(curYear);
+                periodExpenses.totalGross = yExp.totalGross;
+                periodExpenses.totalNet = yExp.totalNet;
+                periodExpenses.estimatedVat = yExp.totalVat;
+                periodExpenses.recurringTotal = yExp.totalRecurring;
+                periodExpenses.deviationsTotal = yExp.totalDeviations;
+                periodExpenses.categoryBreakdown = yExp.categoryBreakdown;
+                periodExpenses.deviationsList = yExp.allDeviations;
+            }
+        }
+    }
+
+    const expensesGross = periodExpenses.totalGross || 0;
+    const expensesNet = periodExpenses.totalNet || 0;
+    const expensesVat = periodExpenses.estimatedVat || 0;
+
+    // Net Result (Betriebsergebnis: Einnahmen minus Ausgaben)
+    const netProfit = sumGross - expensesGross;
+    const coverageRatePct = expensesGross > 0 ? Math.round((sumGross / expensesGross) * 100) : (sumGross > 0 ? 100 : 0);
+
+    // --------------------------------------------------------------------------
+    // VORMONATS-VERGLEICH & TREND-PFEILE (Veränderung Einnahmen & Ausgaben)
+    // --------------------------------------------------------------------------
+    let prevPeriodLabel = 'VM';
+    let prevGross = 0;
+    let prevExpenses = 0;
+
+    if (finSelectedMonth !== 'all') {
+        const m = parseInt(finSelectedMonth, 10);
+        const prevM = m > 1 ? (m - 1) : 12;
+        const prevY = m > 1 ? curYear : (curYear - 1);
+        const prevMKey = String(prevM).padStart(2, '0');
+        const prevMonthName = GERMAN_MONTH_SHORT[prevM - 1];
+        prevPeriodLabel = prevMonthName;
+
+        const prevInvoices = actualInvoices.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getFullYear() === prevY && (d.getMonth() + 1) === prevM;
+        });
+        prevGross = prevInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+
+        if (typeof getExpensesForMonth === 'function') {
+            const pExp = getExpensesForMonth(prevY, prevMKey);
+            prevExpenses = pExp.totalGross || 0;
+        }
+    } else {
+        prevPeriodLabel = `VJ ${curYear - 1}`;
+        const prevInvoices = actualInvoices.filter(inv => {
+            const d = parseGermanDate(inv.docDate);
+            return d.getFullYear() === (curYear - 1);
+        });
+        prevGross = prevInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+
+        if (typeof getExpensesForYear === 'function') {
+            const pExp = getExpensesForYear(curYear - 1);
+            prevExpenses = pExp.totalGross || 0;
+        }
+    }
+
+    // Trend Einnahmen
+    const incomeDiff = sumGross - prevGross;
+    let incomeTrendText = '';
+    let incomeTrendClass = 'neutral';
+    if (prevGross > 0) {
+        const pct = Math.round((Math.abs(incomeDiff) / prevGross) * 100);
+        if (incomeDiff > 0) {
+            incomeTrendText = `▲ +${pct}% ggü. ${prevPeriodLabel}`;
+            incomeTrendClass = 'up';
+        } else if (incomeDiff < 0) {
+            incomeTrendText = `▼ -${pct}% ggü. ${prevPeriodLabel}`;
+            incomeTrendClass = 'down';
+        } else {
+            incomeTrendText = `● ±0% ggü. ${prevPeriodLabel}`;
+            incomeTrendClass = 'neutral';
+        }
+    } else if (sumGross > 0) {
+        incomeTrendText = `▲ +${formatCurrency(sumGross)} (Neu)`;
+        incomeTrendClass = 'up';
+    } else {
+        incomeTrendText = `● 0,00 €`;
+        incomeTrendClass = 'neutral';
+    }
+
+    // Trend Ausgaben
+    const expDiff = expensesGross - prevExpenses;
+    let expTrendText = '';
+    let expTrendClass = 'neutral';
+    if (prevExpenses > 0) {
+        const pct = Math.round((Math.abs(expDiff) / prevExpenses) * 100);
+        if (expDiff > 0) {
+            expTrendText = `▲ +${pct}% ggü. ${prevPeriodLabel}`;
+            expTrendClass = 'down'; // Höhere Ausgaben -> Rot/Warnung
+        } else if (expDiff < 0) {
+            expTrendText = `▼ -${pct}% ggü. ${prevPeriodLabel}`;
+            expTrendClass = 'up'; // Geringere Ausgaben -> Grün/Ersparnis
+        } else {
+            expTrendText = `● ±0% ggü. ${prevPeriodLabel}`;
+            expTrendClass = 'neutral';
+        }
+    } else if (expensesGross > 0) {
+        expTrendText = `▲ +${formatCurrency(expensesGross)}`;
+        expTrendClass = 'down';
+    } else {
+        expTrendText = `● 0,00 €`;
+        expTrendClass = 'neutral';
+    }
+
+    // Populate KPI Cards
+    const elGrossTitle = document.getElementById('pbi-kpi-gross-title');
+    const elGrossVal = document.getElementById('pbi-kpi-gross-val');
+    const elGrossSub = document.getElementById('pbi-kpi-gross-sub');
+    const elTrendGross = document.getElementById('pbi-trend-gross');
+    const elMeterGross = document.getElementById('pbi-meter-gross');
+
+    if (elGrossTitle) elGrossTitle.textContent = finSelectedMonth !== 'all' ? `Einnahmen (${GERMAN_MONTH_SHORT[parseInt(finSelectedMonth, 10) - 1]})` : 'Jahreseinnahmen (Brutto)';
+    if (elGrossVal) elGrossVal.textContent = formatCurrency(sumGross);
+    if (elGrossSub) {
+        if (finSelectedMonth !== 'all') {
+            const diffSign = incomeDiff >= 0 ? '+' : '';
+            elGrossSub.textContent = `Vormonat: ${formatCurrency(prevGross)} (${diffSign}${formatCurrency(incomeDiff)})`;
+        } else {
+            elGrossSub.textContent = `Gesamtvolumen Ausgangsrechnungen`;
+        }
+    }
+    if (elTrendGross) {
+        elTrendGross.textContent = incomeTrendText;
+        elTrendGross.className = `pbi-trend-badge ${incomeTrendClass}`;
+        elTrendGross.title = `Vormonat (${prevPeriodLabel}): ${formatCurrency(prevGross)} | Veränderung: ${incomeDiff >= 0 ? '+' : ''}${formatCurrency(incomeDiff)}`;
+    }
+
+    // KPI 2: Betriebsausgaben
+    const elExpVal = document.getElementById('pbi-kpi-expenses-val');
+    const elExpSub = document.getElementById('pbi-kpi-expenses-sub');
+    const elExpTitle = document.getElementById('pbi-kpi-expenses-title');
+    const elTrendExp = document.getElementById('pbi-trend-expenses');
+    const elMeterExp = document.getElementById('pbi-meter-expenses');
+
+    if (elExpTitle) elExpTitle.textContent = finSelectedMonth !== 'all' ? `Ausgaben (${GERMAN_MONTH_SHORT[parseInt(finSelectedMonth, 10) - 1]})` : 'Jahresausgaben (Kosten)';
+    if (elExpVal) elExpVal.textContent = formatCurrency(expensesGross);
+    if (elExpSub) {
+        if (finSelectedMonth !== 'all') {
+            const diffSign = expDiff >= 0 ? '+' : '';
+            elExpSub.textContent = `Vormonat: ${formatCurrency(prevExpenses)} (${diffSign}${formatCurrency(expDiff)})`;
+        } else {
+            elExpSub.textContent = `Fix: ${formatCurrency(periodExpenses.recurringTotal)} + Sonder: ${formatCurrency(periodExpenses.deviationsTotal)}`;
+        }
+    }
+    if (elTrendExp) {
+        elTrendExp.textContent = expTrendText;
+        elTrendExp.className = `pbi-trend-badge ${expTrendClass}`;
+        elTrendExp.removeAttribute('style');
+        elTrendExp.title = `Vormonat (${prevPeriodLabel}): ${formatCurrency(prevExpenses)} | Veränderung: ${expDiff >= 0 ? '+' : ''}${formatCurrency(expDiff)}`;
+    }
+    if (elMeterExp) {
+        const expMeterPct = Math.min(100, Math.max(10, Math.round((expensesGross / (sumGross || expensesGross || 1)) * 100)));
+        elMeterExp.style.width = `${expMeterPct}%`;
+    }
+
+    // KPI 3: Betriebsergebnis (Saldo)
+    const elNetVal = document.getElementById('pbi-kpi-net-val');
+    const elNetSub = document.getElementById('pbi-kpi-net-sub');
+    const elTrendNet = document.getElementById('pbi-trend-net');
+    const elMeterNet = document.getElementById('pbi-meter-net');
+
+    const prevNetProfit = prevGross - prevExpenses;
+    const netDiff = netProfit - prevNetProfit;
+
+    if (elNetVal) {
+        const sign = netProfit > 0 ? '+' : '';
+        elNetVal.textContent = `${sign}${formatCurrency(netProfit)}`;
+        elNetVal.style.color = netProfit >= 0 ? '#059669' : '#dc2626';
+    }
+    if (elNetSub) {
+        if (finSelectedMonth !== 'all') {
+            const diffSign = netDiff >= 0 ? '+' : '';
+            elNetSub.textContent = `Vormonat: ${formatCurrency(prevNetProfit)} (${diffSign}${formatCurrency(netDiff)})`;
+        } else {
+            elNetSub.textContent = netProfit >= 0 
+                ? `Überschuss nach allen Ausgaben` 
+                : `Defizit / Unterdeckung im Zeitraum`;
+        }
+    }
+    if (elTrendNet) {
+        let netTrendText = '';
+        let netTrendClass = netProfit >= 0 ? 'up' : 'down';
+        if (netDiff > 0) {
+            netTrendText = `▲ +${formatCurrency(netDiff)} ggü. ${prevPeriodLabel}`;
+            netTrendClass = 'up';
+        } else if (netDiff < 0) {
+            netTrendText = `▼ -${formatCurrency(Math.abs(netDiff))} ggü. ${prevPeriodLabel}`;
+            netTrendClass = 'down';
+        } else {
+            netTrendText = netProfit >= 0 ? '▲ Überschuss' : '▼ Defizit';
+        }
+        elTrendNet.textContent = netTrendText;
+        elTrendNet.className = `pbi-trend-badge ${netTrendClass}`;
+        elTrendNet.title = `Vormonat (${prevPeriodLabel}): ${formatCurrency(prevNetProfit)} | Saldo-Veränderung: ${netDiff >= 0 ? '+' : ''}${formatCurrency(netDiff)}`;
+    }
+    if (elMeterNet) {
+        elMeterNet.style.background = netProfit >= 0 ? '#10b981' : '#ef4444';
+        elMeterNet.style.width = netProfit >= 0 ? '100%' : '35%';
+    }
+
+    // KPI 4: 19% USt-Zahllast nach Vorsteuer
+    const elTaxVal = document.getElementById('pbi-kpi-tax-val');
+    const elTaxSub = document.getElementById('pbi-kpi-tax-sub');
+    if (elTaxVal) {
+        const netTaxPayable = Math.max(0, sumTax - expensesVat);
+        elTaxVal.textContent = formatCurrency(netTaxPayable);
+    }
+    if (elTaxSub) {
+        elTaxSub.textContent = expensesVat > 0 
+            ? `USt ${formatCurrency(sumTax)} abzgl. ${formatCurrency(expensesVat)} Vorsteuer`
+            : `Zahllast an Finanzamt Pforzheim`;
+    }
+
+    // KPI 5: Kostendeckung & Quote
+    const elPaidVal = document.getElementById('pbi-kpi-paid-val');
+    const elPaidSub = document.getElementById('pbi-kpi-paid-sub');
+    const elPaidRate = document.getElementById('pbi-kpi-paid-rate');
+    const elMeterPaid = document.getElementById('pbi-meter-paid');
+
+    if (elPaidVal) elPaidVal.textContent = `${coverageRatePct}%`;
+    if (elPaidSub) elPaidSub.textContent = `${formatCurrency(paidGross)} vereinnahmt (von ${formatCurrency(sumGross)})`;
+    if (elPaidRate) {
+        elPaidRate.textContent = coverageRatePct >= 100 ? `${coverageRatePct}% gedeckt` : `${coverageRatePct}% Unterdeckung`;
+        elPaidRate.className = `pbi-trend-badge ${coverageRatePct >= 100 ? 'up' : 'down'}`;
+    }
+    if (elMeterPaid) elMeterPaid.style.width = `${Math.min(100, coverageRatePct)}%`;
+
+    // KPI 6: Belege & Kunden
+    const elInvoicesVal = document.getElementById('pbi-kpi-invoices-val');
+    const elInvoicesSub = document.getElementById('pbi-kpi-invoices-sub');
+    const elClientCount = document.getElementById('pbi-kpi-client-count');
+
+    if (elInvoicesVal) elInvoicesVal.textContent = `${countInvoices} Beleg${countInvoices === 1 ? '' : 'e'}`;
+    if (elInvoicesSub) elInvoicesSub.textContent = `Ø ${formatCurrency(avgNet)} Netto / Auftrag`;
+    if (elClientCount) elClientCount.textContent = `${uniqueClients.size} Kunde${uniqueClients.size === 1 ? '' : 'n'}`;
+
+    // Update Year Label in chart header
+    const chartYearLabel = document.getElementById('pbi-chart-year-label');
+    if (chartYearLabel) chartYearLabel.textContent = String(curYear);
+
+    // 2. VISUAL 1: 12-MONTH POWER BI COLUMN CHART (EINNAHMEN VS. AUSGABEN)
+    const chartContainer = document.getElementById('pbi-bar-chart-container');
+    if (chartContainer) {
+        const monthlyStats = [];
+        let maxBarVal = 1000;
+
+        for (let m = 0; m < 12; m++) {
+            const mKey = String(m + 1).padStart(2, '0');
+            const mInvoices = yearFiltered.filter(inv => {
+                const d = parseGermanDate(inv.docDate);
+                return d.getMonth() === m;
+            });
+            const mNet = mInvoices.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+            const mGross = mInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+
+            let mExp = { totalGross: 0, totalNet: 0, recurringTotal: 0, deviationsTotal: 0 };
+            if (typeof getExpensesForMonth === 'function') {
+                mExp = getExpensesForMonth(curYear, mKey);
+            }
+
+            const mExpGross = mExp.totalGross || 0;
+            if (mGross > maxBarVal) maxBarVal = mGross;
+            if (mExpGross > maxBarVal) maxBarVal = mExpGross;
+
+            monthlyStats.push({
+                monthIdx: m,
+                key: mKey,
+                shortName: GERMAN_MONTH_SHORT[m],
+                fullName: GERMAN_MONTH_NAMES[m],
+                count: mInvoices.length,
+                net: mNet,
+                gross: mGross,
+                expGross: mExpGross,
+                balance: mGross - mExpGross
+            });
+        }
+
+        let chartHtml = '';
+        monthlyStats.forEach(stat => {
+            const isSelected = (finSelectedMonth === stat.key);
+            const incomeHeightPct = maxBarVal > 0 ? Math.round((stat.gross / maxBarVal) * 100) : 0;
+            const expHeightPct = maxBarVal > 0 ? Math.round((stat.expGross / maxBarVal) * 100) : 0;
+
+            const balSign = stat.balance >= 0 ? '+' : '';
+            const balLabel = stat.balance >= 0 ? 'Überschuss' : 'Defizit';
+            const tooltipText = `${stat.fullName} ${curYear}: \nEinnahmen: ${formatCurrency(stat.gross)} \nAusgaben: ${formatCurrency(stat.expGross)} \nErgebnis: ${balSign}${formatCurrency(stat.balance)} (${balLabel})`;
+
+            chartHtml += `
+                <div class="pbi-chart-col-group ${isSelected ? 'active' : ''}" onclick="setFinMonthFilter('${isSelected ? 'all' : stat.key}')" title="${escapeHtml(tooltipText)}">
+                    <div class="pbi-col-bars-pair">
+                        <div class="pbi-col-bar-income" style="height: ${Math.max(3, incomeHeightPct)}%;" title="Einnahmen: ${formatCurrency(stat.gross)}"></div>
+                        <div class="pbi-col-bar-expenses" style="height: ${Math.max(3, expHeightPct)}%;" title="Ausgaben: ${formatCurrency(stat.expGross)}"></div>
+                    </div>
+                    <span class="pbi-col-label">${stat.shortName}</span>
+                </div>
+            `;
+        });
+        chartContainer.innerHTML = chartHtml;
+    }
+
+    // 3. VISUAL 2: CASHFLOW & PAYMENT STATUS BREAKDOWN
+    const stackBar = document.getElementById('pbi-status-stack-bar');
+    const statusList = document.getElementById('pbi-status-list-container');
+    const cashPeriodBadge = document.getElementById('pbi-cashflow-period-badge');
+
+    if (cashPeriodBadge) {
+        cashPeriodBadge.textContent = finSelectedMonth !== 'all' 
+            ? `${GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1]} ${quartersSelectedYear !== 'all' ? quartersSelectedYear : ''}` 
+            : `Gesamtjahr ${quartersSelectedYear}`;
+    }
+
+    if (stackBar && statusList) {
+        let paidSum = 0;
+        let paidCount = 0;
+        let openSum = 0;
+        let openCount = 0;
+        let overdueSum = 0;
+        let overdueCount = 0;
+
+        const now = new Date();
+        filteredInvoices.forEach(inv => {
+            const gr = parseFloat(inv.totalGross) || 0;
+            const st = (inv.paymentStatus || inv.status || '').toLowerCase();
+            if (st === 'bezahlt') {
+                paidSum += gr;
+                paidCount++;
+            } else {
+                const docD = parseGermanDate(inv.docDate);
+                const diffDays = Math.floor((now - docD) / (1000 * 60 * 60 * 24));
+                if (diffDays > 14) {
+                    overdueSum += gr;
+                    overdueCount++;
+                } else {
+                    openSum += gr;
+                    openCount++;
+                }
+            }
+        });
+
+        const totalStack = (paidSum + openSum + overdueSum) || 1;
+        const paidPct = Math.round((paidSum / totalStack) * 100);
+        const openPct = Math.round((openSum / totalStack) * 100);
+        const overduePct = Math.max(0, 100 - paidPct - openPct);
+
+        stackBar.innerHTML = `
+            <div class="pbi-status-stack-seg" style="width: ${paidPct}%; background: #10b981;" title="Bezahlt: ${formatCurrency(paidSum)} (${paidPct}%)"></div>
+            <div class="pbi-status-stack-seg" style="width: ${openPct}%; background: #38bdf8;" title="Im Zahlungsziel: ${formatCurrency(openSum)} (${openPct}%)"></div>
+            <div class="pbi-status-stack-seg" style="width: ${overduePct}%; background: #ef4444;" title="Überfällig: ${formatCurrency(overdueSum)} (${overduePct}%)"></div>
+        `;
+
+        statusList.innerHTML = `
+            <div class="pbi-status-row">
+                <div class="pbi-status-info">
+                    <span class="pbi-status-dot" style="background: #10b981;"></span>
+                    <div>
+                        <div class="pbi-status-name">Vollständig bezahlt & vereinnahmt</div>
+                        <div class="pbi-status-pct">${paidCount} Beleg${paidCount === 1 ? '' : 'e'}</div>
+                    </div>
+                </div>
+                <div class="pbi-status-amounts">
+                    <div class="pbi-status-val" style="color: #059669;">${formatCurrency(paidSum)}</div>
+                    <div class="pbi-status-pct">${paidPct}% vom Volumen</div>
+                </div>
+            </div>
+
+            <div class="pbi-status-row">
+                <div class="pbi-status-info">
+                    <span class="pbi-status-dot" style="background: #38bdf8;"></span>
+                    <div>
+                        <div class="pbi-status-name">Offen (im regulären Zahlungsziel)</div>
+                        <div class="pbi-status-pct">${openCount} Beleg${openCount === 1 ? '' : 'e'}</div>
+                    </div>
+                </div>
+                <div class="pbi-status-amounts">
+                    <div class="pbi-status-val" style="color: #0284c7;">${formatCurrency(openSum)}</div>
+                    <div class="pbi-status-pct">${openPct}% vom Volumen</div>
+                </div>
+            </div>
+
+            <div class="pbi-status-row">
+                <div class="pbi-status-info">
+                    <span class="pbi-status-dot" style="background: #ef4444;"></span>
+                    <div>
+                        <div class="pbi-status-name">Überfällig / Mahnwesen</div>
+                        <div class="pbi-status-pct">${overdueCount} Beleg${overdueCount === 1 ? '' : 'e'}</div>
+                    </div>
+                </div>
+                <div class="pbi-status-amounts">
+                    <div class="pbi-status-val" style="color: #dc2626;">${formatCurrency(overdueSum)}</div>
+                    <div class="pbi-status-pct">${overduePct}% vom Volumen</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 4. VISUAL 3: TOP CLIENTS RANKING
+    const topClientsContainer = document.getElementById('pbi-top-clients-container');
+    if (topClientsContainer) {
+        const clientRevenueMap = {};
+        filteredInvoices.forEach(inv => {
+            const name = (inv.client && inv.client.name) ? inv.client.name.trim() : "Unbekannter Kunde";
+            if (!clientRevenueMap[name]) {
+                clientRevenueMap[name] = { name: name, count: 0, gross: 0, net: 0 };
+            }
+            clientRevenueMap[name].count++;
+            clientRevenueMap[name].gross += (parseFloat(inv.totalGross) || 0);
+            clientRevenueMap[name].net += (parseFloat(inv.totalNet) || 0);
+        });
+
+        const sortedClients = Object.values(clientRevenueMap).sort((a, b) => b.gross - a.gross).slice(0, 5);
+        const topClientMax = sortedClients.length > 0 ? sortedClients[0].gross : 1;
+
+        if (sortedClients.length === 0) {
+            topClientsContainer.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: #94a3b8; font-size: 0.85rem;">
+                    Keine Umsätze für diesen Zeitraum erfasst.
+                </div>
+            `;
+        } else {
+            let clientRowsHtml = '';
+            sortedClients.forEach((cl, idx) => {
+                const widthPct = Math.round((cl.gross / topClientMax) * 100);
+                const sharePct = sumGross > 0 ? Math.round((cl.gross / sumGross) * 100) : 0;
+                clientRowsHtml += `
+                    <div class="pbi-rank-item">
+                        <div class="pbi-rank-num">#${idx + 1}</div>
+                        <div class="pbi-rank-content">
+                            <div class="pbi-rank-top-line">
+                                <span class="pbi-rank-name">${escapeHtml(cl.name)}</span>
+                                <span class="pbi-rank-amount">${formatCurrency(cl.gross)} <span style="font-weight: 500; font-size: 0.72rem; color: #64748b;">(${sharePct}%)</span></span>
+                            </div>
+                            <div class="pbi-rank-bar-bg">
+                                <div class="pbi-rank-bar-fill" style="width: ${widthPct}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            topClientsContainer.innerHTML = clientRowsHtml;
+        }
+    }
+
+    // 5. VISUAL 4: LEISTUNGS- & GEWERKEVERTEILUNG (BWA)
+    const catContainer = document.getElementById('pbi-categories-container');
+    if (catContainer) {
+        const catMap = {
+            "Garten- & Gehölzpflege": { total: 0, count: 0, icon: "🌿" },
+            "Pflaster- & Wegebau": { total: 0, count: 0, icon: "🧱" },
+            "Rollrasen & Begrünung": { total: 0, count: 0, icon: "🌱" },
+            "Baumfällung & Häckseln": { total: 0, count: 0, icon: "🌲" },
+            "Erd- & Baggerarbeiten": { total: 0, count: 0, icon: "🚜" },
+            "Winterdienst & Weiteres": { total: 0, count: 0, icon: "❄️" }
+        };
+
+        filteredInvoices.forEach(inv => {
+            const items = inv.items || [];
+            items.forEach(it => {
+                const title = (it.title || "").toLowerCase();
+                const total = parseFloat(it.total) || 0;
+                if (title.includes('hecke') || title.includes('strauch') || title.includes('pflege') || title.includes('beet') || title.includes('schnitt')) {
+                    catMap["Garten- & Gehölzpflege"].total += total;
+                    catMap["Garten- & Gehölzpflege"].count++;
+                } else if (title.includes('pflaster') || title.includes('stein') || title.includes('terrasse') || title.includes('weg') || title.includes('bord')) {
+                    catMap["Pflaster- & Wegebau"].total += total;
+                    catMap["Pflaster- & Wegebau"].count++;
+                } else if (title.includes('rasen') || title.includes('rollrasen') || title.includes('saat') || title.includes('einsaat')) {
+                    catMap["Rollrasen & Begrünung"].total += total;
+                    catMap["Rollrasen & Begrünung"].count++;
+                } else if (title.includes('baum') || title.includes('fällung') || title.includes('skt') || title.includes('häcksel') || title.includes('wurzel')) {
+                    catMap["Baumfällung & Häckseln"].total += total;
+                    catMap["Baumfällung & Häckseln"].count++;
+                } else if (title.includes('bagger') || title.includes('erd') || title.includes('aushub') || title.includes('boden') || title.includes('kies')) {
+                    catMap["Erd- & Baggerarbeiten"].total += total;
+                    catMap["Erd- & Baggerarbeiten"].count++;
+                } else {
+                    catMap["Winterdienst & Weiteres"].total += total;
+                    catMap["Winterdienst & Weiteres"].count++;
+                }
+            });
+        });
+
+        let catHtml = '';
+        Object.entries(catMap).forEach(([catName, data]) => {
+            catHtml += `
+                <div class="pbi-cat-box">
+                    <div class="pbi-cat-title">${data.icon} ${escapeHtml(catName)}</div>
+                    <div class="pbi-cat-amount">${formatCurrency(data.total)}</div>
+                    <div class="pbi-cat-sub">${data.count} Position${data.count === 1 ? '' : 'en'}</div>
+                </div>
+            `;
+        });
+        catContainer.innerHTML = catHtml;
+    }
+
+    // 6. VISUAL 5: MONATLICHE BETRIEBSAUSGABEN & KOSTENBLÖCKE
+    const expContainer = document.getElementById('pbi-expenses-content-container');
+    const expPeriodBadge = document.getElementById('pbi-expenses-period-badge');
+    const expTitle = document.getElementById('pbi-expenses-visual-title');
+
+    const curPeriodName = (finSelectedMonth !== 'all') 
+        ? `${GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1]} ${curYear}` 
+        : `Gesamtjahr ${curYear}`;
+
+    if (expPeriodBadge) expPeriodBadge.textContent = curPeriodName;
+    if (expTitle) expTitle.textContent = `Monatliche Betriebsausgaben & Verrechnung (${curPeriodName})`;
+
+    if (expContainer) {
+        const catBreakdown = periodExpenses.categoryBreakdown || {};
+        const devList = periodExpenses.deviationsList || [];
+        const maxCat = Math.max(...Object.values(catBreakdown), 100);
+
+        let catBarsHtml = '';
+        Object.entries(catBreakdown).forEach(([cat, val]) => {
+            const pct = Math.round((val / maxCat) * 100);
+            const share = expensesGross > 0 ? Math.round((val / expensesGross) * 100) : 0;
+            catBarsHtml += `
+                <div style="margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 2px;">
+                        <span>${escapeHtml(cat)}</span>
+                        <span>${formatCurrency(val)} <span style="font-weight: 500; font-size: 0.72rem; color: #94a3b8;">(${share}%)</span></span>
+                    </div>
+                    <div style="height: 6px; background: #f1f5f9; border-radius: 9999px; overflow: hidden;">
+                        <div style="height: 100%; width: ${pct}%; background: linear-gradient(90deg, #f43f5e, #be123c); border-radius: 9999px;"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        let devBadgesHtml = '';
+        if (devList.length === 0) {
+            devBadgesHtml = `<span style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">Keine spezifischen Sonderausgaben / Abweichungen für diesen Zeitraum erfasst.</span>`;
+        } else {
+            devList.forEach(dev => {
+                devBadgesHtml += `
+                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; margin: 4px;">
+                        <span style="font-weight: 800; color: #be123c; font-size: 0.78rem;">${escapeHtml(dev.title)}</span>
+                        <strong style="color: #9f1239; font-size: 0.8rem;">${formatCurrency(dev.amount)}</strong>
+                        <span style="font-size: 0.68rem; color: #64748b;">(${dev.date || dev.monthKey})</span>
+                    </div>
+                `;
+            });
+        }
+
+        expContainer.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 16px 20px;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 0.76rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Kosten nach Kategorien</span>
+                        <strong style="font-size: 0.95rem; color: #e11d48;">Gesamt: ${formatCurrency(expensesGross)}</strong>
+                    </div>
+                    ${catBarsHtml || '<div style="color: #94a3b8; font-size: 0.8rem;">Keine Ausgabendaten verfügbar</div>'}
+                </div>
+
+                <div style="display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="font-size: 0.76rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Sonderausgaben & Monatsabweichungen (${devList.length})</span>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: #be123c;">${formatCurrency(periodExpenses.deviationsTotal)}</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px;">
+                            ${devBadgesHtml}
+                        </div>
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="display: block; font-size: 0.82rem; color: #0f172a;">Laufende Fixkosten-Basis:</strong>
+                            <span style="font-size: 0.74rem; color: #64748b;">Miete, Löhne, Fuhrpark, Beratung & Versicherungen</span>
+                        </div>
+                        <strong style="font-size: 0.95rem; color: #0284c7;">${formatCurrency(periodExpenses.recurringTotal)} / Mo.</strong>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// ==========================================================================
+// RENDER SUBVIEW 2: MONATS-RECHNUNG & BELEGJOURNAL
+// ==========================================================================
+function renderMonthlyFinancesView() {
+    const tbody = document.getElementById('fin-monthly-table-body');
+    const tfoot = document.getElementById('fin-monthly-table-footer');
+    if (!tbody) return;
+
+    const filteredInvoices = getFilteredFinInvoices();
+
+    // Sort descending by date
+    const sorted = [...filteredInvoices].sort((a, b) => {
+        const da = a.dateIso || a.docDate || '';
+        const db = b.dateIso || b.docDate || '';
+        return db.localeCompare(da);
+    });
+
+    const sumNet = sorted.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+    const sumTax = sorted.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
+    const sumGross = sorted.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+    const count = sorted.length;
+
+    // Update banner labels
+    const elLabel = document.getElementById('fin-monthly-label');
+    const elNet = document.getElementById('fin-monthly-sum-net');
+    const elTax = document.getElementById('fin-monthly-sum-tax');
+    const elGross = document.getElementById('fin-monthly-sum-gross');
+    const elCount = document.getElementById('fin-monthly-sum-count');
+
+    const periodTitle = (finSelectedMonth !== 'all')
+        ? `${GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1]} ${quartersSelectedYear !== 'all' ? quartersSelectedYear : ''}`
+        : `Alle Monate ${quartersSelectedYear !== 'all' ? quartersSelectedYear : '(Gesamt)'}`;
+
+    if (elLabel) elLabel.textContent = periodTitle;
+    if (elNet) elNet.textContent = formatCurrency(sumNet);
+    if (elTax) elTax.textContent = formatCurrency(sumTax);
+    if (elGross) elGross.textContent = formatCurrency(sumGross);
+    if (elCount) elCount.textContent = `${count} Beleg${count === 1 ? '' : 'e'}`;
+
+    if (sorted.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="padding: 36px; text-align: center; color: #94a3b8;">
+                    Keine Ausgangsrechnungen für ${escapeHtml(periodTitle)} gefunden.
+                </td>
+            </tr>
+        `;
+    } else {
+        let rowsHtml = '';
+        sorted.forEach(inv => {
+            const isPaid = (inv.paymentStatus || inv.status || '').toLowerCase() === 'bezahlt';
+            const clientName = (inv.client && inv.client.name) ? inv.client.name : "Kunde";
+            const clientCity = (inv.client && inv.client.zipCity) ? inv.client.zipCity : "";
+            const leadItem = (inv.items && inv.items[0]) ? inv.items[0].title : "GalaBau Leistung";
+
+            rowsHtml += `
+                <tr class="crm-row">
+                    <td>
+                        <strong style="color: #0284c7; cursor: pointer;" onclick="editInvoiceInGenerator('${inv.id}')" title="Im Generator öffnen">
+                            ${escapeHtml(inv.docNumber)}
+                        </strong>
+                    </td>
+                    <td>${escapeHtml(inv.docDate)}</td>
+                    <td>
+                        <div style="font-weight: 700; color: var(--text-primary);">${escapeHtml(clientName)}</div>
+                        <div style="font-size: 0.75rem; color: #64748b;">${escapeHtml(clientCity)}</div>
+                    </td>
+                    <td>
+                        <span style="font-size: 0.82rem; color: #334155;">${escapeHtml(leadItem)}</span>
+                    </td>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(inv.totalNet)}</td>
+                    <td style="text-align: right; color: #ea580c; font-weight: 700;">${formatCurrency(inv.totalTax)}</td>
+                    <td style="text-align: right; font-weight: 800; color: #059669; font-size: 0.95rem;">${formatCurrency(inv.totalGross)}</td>
+                    <td style="text-align: center;">
+                        <button type="button" class="crm-badge ${isPaid ? 'crm-badge-active' : 'crm-badge-closed'}" onclick="toggleInvoicePaymentStatus('${inv.id}')" title="Klicken um Status zu wechseln" style="cursor: pointer; border: none;">
+                            ${isPaid ? '✓ Bezahlt' : '⏳ Offen'}
+                        </button>
+                    </td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; gap: 4px; justify-content: center;">
+                            <button type="button" class="crm-action-btn primary" onclick="editInvoiceInGenerator('${inv.id}')" title="Im Generator bearbeiten">
+                                Öffnen
+                            </button>
+                            <button type="button" class="crm-action-btn" onclick="downloadInvoicePdfDirect('${inv.id}')" title="PDF drucken / exportieren">
+                                PDF
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = rowsHtml;
+    }
+
+    if (tfoot) {
+        tfoot.innerHTML = `
+            <tr>
+                <td colspan="4" style="font-weight: 800; font-size: 0.95rem;">
+                    Summe ${escapeHtml(periodTitle)}
+                </td>
+                <td style="text-align: right; font-weight: 800; color: var(--text-primary);">
+                    ${formatCurrency(sumNet)}
+                </td>
+                <td style="text-align: right; font-weight: 800; color: #ea580c;">
+                    ${formatCurrency(sumTax)}
+                </td>
+                <td style="text-align: right; font-weight: 900; color: #059669; font-size: 1.05rem;">
+                    ${formatCurrency(sumGross)}
+                </td>
+                <td colspan="2" style="text-align: center;">
+                    <button type="button" class="crm-action-btn primary" onclick="openMonthlyStatementModal()" title="Monatsabrechnung drucken">
+                        🖨️ Drucken
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// ==========================================================================
+// RENDER SUBVIEW 3: QUARTERS TABLE (EXISTING COMPLIANT LOGIC)
+// ==========================================================================
+function renderQuartersTableView() {
     const tbody = document.getElementById('crm-quarters-table-body');
     const tfoot = document.getElementById('crm-quarters-table-footer');
     if (!tbody) return;
 
     const archive = getInvoicesArchive();
+    const actualInvoices = archive.filter(inv => inv.docType !== 'angebot');
 
-    // Filter by year
     const yearFiltered = (quartersSelectedYear === 'all')
-        ? archive
-        : archive.filter(inv => {
+        ? actualInvoices
+        : actualInvoices.filter(inv => {
             const d = parseGermanDate(inv.docDate);
             return d.getFullYear() === parseInt(quartersSelectedYear, 10);
         });
@@ -5882,67 +6955,13 @@ window.renderQuartersView = function() {
     const sumTax = yearFiltered.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
     const sumCount = yearFiltered.length;
 
-    // Update KPI Banner
-    const yearLabel = document.getElementById('quarters-summary-year-label');
-    const bGross = document.getElementById('quarters-sum-gross');
-    const bNet = document.getElementById('quarters-sum-net');
-    const bTax = document.getElementById('quarters-sum-tax');
-    const bCount = document.getElementById('quarters-sum-count');
-
-    if (yearLabel) yearLabel.textContent = quartersSelectedYear === 'all' ? 'Gesamtumsatz (Alle Jahre)' : `Jahresumsatz ${quartersSelectedYear} Brutto`;
-    if (bGross) bGross.textContent = formatCurrency(sumGross);
-    if (bNet) bNet.textContent = formatCurrency(sumNet);
-    if (bTax) bTax.textContent = formatCurrency(sumTax);
-    if (bCount) bCount.textContent = String(sumCount);
-
     const yearNum = (quartersSelectedYear === 'all') ? 2026 : parseInt(quartersSelectedYear, 10);
 
-    // Group into 4 Quarters with statutory deadlines
     const quarters = [
-        { 
-            id: 1, 
-            name: "1. Quartal (Q1)", 
-            period: "01.01. – 31.03.", 
-            deadline: `10. Mai ${yearNum}`, 
-            status: "Abgeschlossen", 
-            invoices: [], 
-            gross: 0, 
-            net: 0, 
-            tax: 0 
-        },
-        { 
-            id: 2, 
-            name: "2. Quartal (Q2)", 
-            period: "01.04. – 30.06.", 
-            deadline: `10. August ${yearNum}`, 
-            status: "Fällig / In Bearbeitung", 
-            invoices: [], 
-            gross: 0, 
-            net: 0, 
-            tax: 0 
-        },
-        { 
-            id: 3, 
-            name: "3. Quartal (Q3)", 
-            period: "01.07. – 30.09.", 
-            deadline: `10. November ${yearNum}`, 
-            status: "In Vorbereitung", 
-            invoices: [], 
-            gross: 0, 
-            net: 0, 
-            tax: 0 
-        },
-        { 
-            id: 4, 
-            name: "4. Quartal (Q4)", 
-            period: "01.10. – 31.12.", 
-            deadline: `10. Februar ${yearNum + 1}`, 
-            status: "In Vorbereitung", 
-            invoices: [], 
-            gross: 0, 
-            net: 0, 
-            tax: 0 
-        }
+        { id: 1, name: "1. Quartal (Q1)", period: "01.01. – 31.03.", deadline: `10. Mai ${yearNum}`, invoices: [], gross: 0, net: 0, tax: 0 },
+        { id: 2, name: "2. Quartal (Q2)", period: "01.04. – 30.06.", deadline: `10. August ${yearNum}`, invoices: [], gross: 0, net: 0, tax: 0 },
+        { id: 3, name: "3. Quartal (Q3)", period: "01.07. – 30.09.", deadline: `10. November ${yearNum}`, invoices: [], gross: 0, net: 0, tax: 0 },
+        { id: 4, name: "4. Quartal (Q4)", period: "01.10. – 31.12.", deadline: `10. Februar ${yearNum + 1}`, invoices: [], gross: 0, net: 0, tax: 0 }
     ];
 
     yearFiltered.forEach(inv => {
@@ -5961,10 +6980,7 @@ window.renderQuartersView = function() {
     quarters.forEach(q => {
         const isExpanded = openQuarterRows.has(q.id);
         const hasInvoices = q.invoices.length > 0;
-
-        let statusClass = "crm-badge-future";
-        if (q.id === 1) statusClass = "crm-badge-closed";
-        if (q.id === 2) statusClass = "crm-badge-active";
+        let statusClass = (q.id === 1) ? "crm-badge-closed" : (q.id === 2 ? "crm-badge-active" : "crm-badge-future");
 
         html += `
             <tr class="crm-row ${isExpanded ? 'highlight-row' : ''}">
@@ -5990,29 +7006,19 @@ window.renderQuartersView = function() {
                         ${q.invoices.length} ${q.invoices.length === 1 ? 'Beleg' : 'Belege'}
                     </span>
                 </td>
-                <td style="text-align: right; font-weight: 700;">
-                    ${formatCurrency(q.net)}
-                </td>
-                <td style="text-align: right; font-weight: 800; color: #ea580c;">
-                    ${formatCurrency(q.tax)}
-                </td>
-                <td style="text-align: right; font-weight: 800; color: #059669; font-size: 0.95rem;">
-                    ${formatCurrency(q.gross)}
-                </td>
+                <td style="text-align: right; font-weight: 700;">${formatCurrency(q.net)}</td>
+                <td style="text-align: right; font-weight: 800; color: #ea580c;">${formatCurrency(q.tax)}</td>
+                <td style="text-align: right; font-weight: 800; color: #059669; font-size: 0.95rem;">${formatCurrency(q.gross)}</td>
                 <td style="text-align: center;">
                     <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
                         <button type="button" class="crm-action-btn ${hasInvoices ? 'primary' : ''}" onclick="toggleQuarterInvoicesRow(${q.id})" ${!hasInvoices ? 'disabled style="opacity:0.6;"' : ''} title="Belegjournal für ${q.name} aufklappen">
                             ${isExpanded ? 'Schließen' : `Details (${q.invoices.length})`}
-                        </button>
-                        <button type="button" class="crm-action-btn" onclick="filterOverviewByQuarter(${quartersSelectedYear !== 'all' ? quartersSelectedYear : 2026}, ${q.id})" title="Im Rechnungsarchiv filtern">
-                            Archiv
                         </button>
                     </div>
                 </td>
             </tr>
         `;
 
-        // Expandable Sub-Row showing quarter's invoice ledger
         if (isExpanded && hasInvoices) {
             let invSubRows = "";
             q.invoices.forEach(inv => {
@@ -6033,9 +7039,6 @@ window.renderQuartersView = function() {
                                 </button>
                                 <button type="button" class="crm-action-btn" style="padding: 3px 8px; font-size: 0.7rem;" onclick="downloadInvoicePdfDirect('${inv.id}')" title="PDF drucken / herunterladen">
                                     PDF
-                                </button>
-                                <button type="button" class="crm-action-btn" style="padding: 3px 8px; font-size: 0.7rem; color: #dc2626;" onclick="deleteInvoiceFromArchive('${inv.id}')" title="Rechnung aus dem Archiv löschen">
-                                    Löschen
                                 </button>
                             </div>
                         </td>
@@ -6081,7 +7084,6 @@ window.renderQuartersView = function() {
 
     tbody.innerHTML = html;
 
-    // Build Footer
     if (tfoot) {
         tfoot.innerHTML = `
             <tr>
@@ -6108,6 +7110,210 @@ window.renderQuartersView = function() {
             </tr>
         `;
     }
+}
+
+// Master Render Function for Finanzen View
+window.renderQuartersView = function() {
+    // Update active filter badge in top bar
+    const filterBadge = document.getElementById('fin-active-filter-badge');
+    if (filterBadge) {
+        const mLabel = (finSelectedMonth !== 'all') ? GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1] : 'Alle Monate';
+        const yLabel = (quartersSelectedYear !== 'all') ? quartersSelectedYear : 'Alle Jahre';
+        filterBadge.textContent = `Filter: ${mLabel} ${yLabel} • 19% Regelbesteuerung (Pforzheim)`;
+    }
+
+    renderPowerBiDashboard();
+    renderMonthlyFinancesView();
+    renderQuartersTableView();
+};
+
+// ==========================================================================
+// MONATSRECHNUNG MODAL & DIN A4 EXPORT
+// ==========================================================================
+window.openMonthlyStatementModal = function() {
+    const modal = document.getElementById('fin-monthly-statement-modal');
+    const content = document.getElementById('fin-monthly-statement-content');
+    const modalTitle = document.getElementById('fin-statement-modal-title');
+    if (!modal || !content) return;
+
+    const filteredInvoices = getFilteredFinInvoices();
+    const periodLabel = (finSelectedMonth !== 'all')
+        ? `${GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1]} ${quartersSelectedYear !== 'all' ? quartersSelectedYear : ''}`
+        : `Gesamtjahr ${quartersSelectedYear !== 'all' ? quartersSelectedYear : ''}`;
+
+    if (modalTitle) modalTitle.textContent = `Monatsabrechnung • ${periodLabel}`;
+
+    const sumNet = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+    const sumTax = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
+    const sumGross = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+
+    let rowsHtml = '';
+    filteredInvoices.forEach(inv => {
+        const clientName = (inv.client && inv.client.name) ? inv.client.name : "Kunde";
+        const isPaid = (inv.paymentStatus || inv.status || '').toLowerCase() === 'bezahlt';
+        rowsHtml += `
+            <tr>
+                <td style="font-weight: 700;">${escapeHtml(inv.docNumber)}</td>
+                <td>${escapeHtml(inv.docDate)}</td>
+                <td>${escapeHtml(clientName)}</td>
+                <td style="text-align: right;">${formatCurrency(inv.totalNet)}</td>
+                <td style="text-align: right; color: #ea580c;">${formatCurrency(inv.totalTax)}</td>
+                <td style="text-align: right; font-weight: 700;">${formatCurrency(inv.totalGross)}</td>
+                <td style="text-align: center;">${isPaid ? 'Bezahlt' : 'Offen'}</td>
+            </tr>
+        `;
+    });
+
+    content.innerHTML = `
+        <div class="fin-statement-sheet">
+            <div class="fin-statement-header">
+                <div>
+                    <div class="fin-statement-brand">Palnau Gartenbau GmbH</div>
+                    <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                        Garten- und Landschaftsbau • Erdarbeiten • Pflasterbau
+                    </div>
+                    <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">
+                        Reihelberg 3, 75210 Keltern • Steuernummer: 41413-45017 • Finanzamt Pforzheim
+                    </div>
+                </div>
+                <div class="fin-statement-meta">
+                    <strong style="color: #0f172a;">MONATSABRECHNUNG</strong><br>
+                    Abrechnungszeitraum: <strong>${escapeHtml(periodLabel)}</strong><br>
+                    Erstellt am: ${new Date().toLocaleDateString('de-DE')}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 14px; margin-bottom: 20px;">
+                <div style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Nettoumsatz (Kz 81)</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #059669; margin-top: 2px;">${formatCurrency(sumNet)}</div>
+                </div>
+                <div style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">19% USt-Zahllast (Kz 83)</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #ea580c; margin-top: 2px;">${formatCurrency(sumTax)}</div>
+                </div>
+                <div style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Gesamtumsatz Brutto</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin-top: 2px;">${formatCurrency(sumGross)}</div>
+                </div>
+                <div style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Anzahl Ausgangsbelege</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #0284c7; margin-top: 2px;">${filteredInvoices.length}</div>
+                </div>
+            </div>
+
+            <table class="fin-statement-table">
+                <thead>
+                    <tr>
+                        <th>Beleg-Nr.</th>
+                        <th>Datum</th>
+                        <th>Kunde / Empfänger</th>
+                        <th style="text-align: right;">Netto</th>
+                        <th style="text-align: right;">19% USt</th>
+                        <th style="text-align: right;">Brutto</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml || '<tr><td colspan="7" style="text-align:center; padding: 20px;">Keine Belege vorhanden</td></tr>'}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3">Gesamtsumme ${escapeHtml(periodLabel)}</td>
+                        <td style="text-align: right;">${formatCurrency(sumNet)}</td>
+                        <td style="text-align: right; color: #ea580c;">${formatCurrency(sumTax)}</td>
+                        <td style="text-align: right; color: #059669;">${formatCurrency(sumGross)}</td>
+                        <td style="text-align: center;">${filteredInvoices.length} Belege</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="fin-statement-footer-signs">
+                <div class="fin-sign-box">
+                    Ort, Datum
+                </div>
+                <div class="fin-sign-box">
+                    Unterschrift Geschäftsführung
+                </div>
+                <div class="fin-sign-box">
+                    Geprüft Buchhaltung / StB
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+};
+
+window.closeMonthlyStatementModal = function() {
+    const modal = document.getElementById('fin-monthly-statement-modal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.printMonthlyStatementSheet = function() {
+    window.print();
+};
+
+window.exportFinancesToCsv = function() {
+    const filteredInvoices = getFilteredFinInvoices();
+    const periodLabel = (finSelectedMonth !== 'all')
+        ? `${GERMAN_MONTH_NAMES[parseInt(finSelectedMonth, 10) - 1]}_${quartersSelectedYear}`
+        : `Jahr_${quartersSelectedYear}`;
+
+    const rows = [
+        ["Belegnummer", "Datum", "Kunde", "Strasse", "PLZ_Ort", "Leistung", "Netto_EUR", "USt19_EUR", "Brutto_EUR", "Zahlungsstatus"]
+    ];
+
+    filteredInvoices.forEach(inv => {
+        const clientName = (inv.client && inv.client.name) ? inv.client.name : "";
+        const street = (inv.client && inv.client.street) ? inv.client.street : "";
+        const zipCity = (inv.client && inv.client.zipCity) ? inv.client.zipCity : "";
+        const leadItem = (inv.items && inv.items[0]) ? inv.items[0].title : "";
+        const net = parseFloat(inv.totalNet) || 0;
+        const tax = parseFloat(inv.totalTax) || 0;
+        const gross = parseFloat(inv.totalGross) || 0;
+        const status = (inv.paymentStatus || inv.status || 'offen');
+
+        rows.push([
+            `"${inv.docNumber || ''}"`,
+            `"${inv.docDate || ''}"`,
+            `"${clientName}"`,
+            `"${street}"`,
+            `"${zipCity}"`,
+            `"${leadItem.replace(/"/g, '""')}"`,
+            net.toFixed(2),
+            tax.toFixed(2),
+            gross.toFixed(2),
+            `"${status}"`
+        ]);
+    });
+
+    const sumNet = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalNet) || 0), 0);
+    const sumTax = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalTax) || 0), 0);
+    const sumGross = filteredInvoices.reduce((s, inv) => s + (parseFloat(inv.totalGross) || 0), 0);
+
+    rows.push([
+        `"SUMME (${periodLabel})"`,
+        `""`,
+        `""`,
+        `""`,
+        `""`,
+        `""`,
+        sumNet.toFixed(2),
+        sumTax.toFixed(2),
+        sumGross.toFixed(2),
+        `"${filteredInvoices.length} Belege"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Palnau_Finanzen_${periodLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Finanz-Journal ${periodLabel} als CSV exportiert!`);
 };
 
 window.exportQuartersToCsv = function() {
@@ -6201,7 +7407,7 @@ window.getLoanData = function() {
         const initial = (typeof DEFAULT_LOAN_DATA !== 'undefined')
             ? JSON.parse(JSON.stringify(DEFAULT_LOAN_DATA))
             : {
-                budgets: { bga: 8000.00, betriebsmittel: 27000.00, uebernahme: 37500.00 },
+                budgets: { bga: 8000.00, betriebsmittel: 34500.00, uebernahme: 30000.00 },
                 entries: []
             };
         localStorage.setItem(LOANS_STORAGE_KEY, JSON.stringify(initial));
@@ -6211,8 +7417,21 @@ window.getLoanData = function() {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed.budgets === 'object' && Array.isArray(parsed.entries)) {
             if (parsed.budgets.bga === undefined) parsed.budgets.bga = 8000;
-            if (parsed.budgets.betriebsmittel === undefined) parsed.budgets.betriebsmittel = 27000;
-            if (parsed.budgets.uebernahme === undefined) parsed.budgets.uebernahme = 37500;
+            // 7.500 € von Topf 3 (Übernahme) in Topf 2 (Betriebsmittel) aufsummiert:
+            // Topf 2: 27.000 + 7.500 = 34.500 €
+            // Topf 3: 37.500 - 7.500 = 30.000 €
+            if (parsed.budgets.betriebsmittel === undefined || parsed.budgets.betriebsmittel === 27000 || parsed.budgets.betriebsmittel < 34500) {
+                parsed.budgets.betriebsmittel = 34500.00;
+            }
+            if (parsed.budgets.uebernahme === undefined || parsed.budgets.uebernahme === 37500 || parsed.budgets.uebernahme > 30000) {
+                parsed.budgets.uebernahme = 30000.00;
+            }
+            // If loan-ent-1 is still the old 35000, adjust to 27500 so Topf 3 remains within 30000
+            const ent1 = parsed.entries.find(e => e.id === 'loan-ent-1' && e.amount === 35000);
+            if (ent1) {
+                ent1.amount = 27500.00;
+            }
+            localStorage.setItem(LOANS_STORAGE_KEY, JSON.stringify(parsed));
             return parsed;
         }
         throw new Error("Invalid loan structure");
@@ -6221,7 +7440,7 @@ window.getLoanData = function() {
         const initial = (typeof DEFAULT_LOAN_DATA !== 'undefined')
             ? JSON.parse(JSON.stringify(DEFAULT_LOAN_DATA))
             : {
-                budgets: { bga: 8000.00, betriebsmittel: 27000.00, uebernahme: 37500.00 },
+                budgets: { bga: 8000.00, betriebsmittel: 34500.00, uebernahme: 30000.00 },
                 entries: []
             };
         localStorage.setItem(LOANS_STORAGE_KEY, JSON.stringify(initial));
@@ -6271,7 +7490,7 @@ window.clearLoanSearch = function() {
 
 window.renderLoansView = function() {
     const loanData = getLoanData();
-    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 27000, uebernahme: 37500 };
+    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 34500, uebernahme: 30000 };
     const entries = loanData.entries || [];
 
     // 1. Calculate pot totals
@@ -6672,11 +7891,11 @@ window.openEditBudgetsModal = function() {
     if (!modal) return;
 
     const loanData = getLoanData();
-    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 27000, uebernahme: 37500 };
+    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 34500, uebernahme: 30000 };
 
     if (bgaInput) bgaInput.value = budgets.bga ?? 8000;
-    if (betriebInput) betriebInput.value = budgets.betriebsmittel ?? 27000;
-    if (uebernahmeInput) uebernahmeInput.value = budgets.uebernahme ?? 37500;
+    if (betriebInput) betriebInput.value = budgets.betriebsmittel ?? 34500;
+    if (uebernahmeInput) uebernahmeInput.value = budgets.uebernahme ?? 30000;
 
     function updatePreview() {
         const bga = parseFloat(bgaInput?.value) || 0;
@@ -6723,7 +7942,7 @@ window.handleSaveLoanBudgets = function(event) {
 
 window.exportLoanReportToCsv = function() {
     const loanData = getLoanData();
-    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 27000, uebernahme: 37500 };
+    const budgets = loanData.budgets || { bga: 8000, betriebsmittel: 34500, uebernahme: 30000 };
     const entries = loanData.entries || [];
 
     const potLabels = {
@@ -6769,4 +7988,2375 @@ window.exportLoanReportToCsv = function() {
     document.body.removeChild(link);
     showToast("Kreditbericht als CSV exportiert!");
 };
+
+// ==========================================================================
+// ARBEITSZEITKONTO & ÜBERSTUNDEN-VERWALTUNG (AZK)
+// ==========================================================================
+
+const WORKTIME_STORAGE_KEY = 'palnau_worktime_data_v1';
+
+const DEFAULT_WORKTIME_DATA = {
+    employees: [
+        {
+            id: 'emp-1',
+            name: 'Florian Keller',
+            role: 'Vorarbeiter GalaBau',
+            weeklyHours: 40,
+            initialBalance: 0.0,
+            status: 'active'
+        },
+        {
+            id: 'emp-2',
+            name: 'Stefan Becker',
+            role: 'Facharbeiter Grünpflege & Gehölzschnitt',
+            weeklyHours: 40,
+            initialBalance: 0.0,
+            status: 'active'
+        },
+        {
+            id: 'emp-3',
+            name: 'Marius Weber',
+            role: 'Facharbeiter Pflaster & Naturstein',
+            weeklyHours: 40,
+            initialBalance: 0.0,
+            status: 'active'
+        },
+        {
+            id: 'emp-4',
+            name: 'Andrei Priala',
+            role: 'Geschäftsführung & Bauleitung',
+            weeklyHours: 40,
+            initialBalance: 0.0,
+            status: 'active'
+        }
+    ],
+    entries: [
+        // Florian Keller
+        {
+            id: 'wt-1',
+            employeeId: 'emp-1',
+            date: '17.01.2026',
+            dateIso: '2026-01-17',
+            monthKey: '2026-01',
+            monthLabel: 'Januar 2026',
+            type: 'aufbau',
+            hours: 4.0,
+            purpose: 'Winterdienst & Räumdienst Bereitschaft Wochenende'
+        },
+        {
+            id: 'wt-2',
+            employeeId: 'emp-1',
+            date: '14.02.2026',
+            dateIso: '2026-02-14',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'aufbau',
+            hours: 6.5,
+            purpose: 'Pflasterarbeiten Überstunden Objekt Dietlingen'
+        },
+        {
+            id: 'wt-3',
+            employeeId: 'emp-1',
+            date: '27.02.2026',
+            dateIso: '2026-02-27',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'abbau',
+            hours: 4.0,
+            purpose: 'Freizeitausgleich früher Feierabend Freitag'
+        },
+        {
+            id: 'wt-4',
+            employeeId: 'emp-1',
+            date: '14.03.2026',
+            dateIso: '2026-03-14',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'aufbau',
+            hours: 6.0,
+            purpose: 'Großbaustelle Pforzheim Pflasterverlegung'
+        },
+        {
+            id: 'wt-5',
+            employeeId: 'emp-1',
+            date: '20.03.2026',
+            dateIso: '2026-03-20',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'aufbau',
+            hours: 4.0,
+            purpose: 'Heckenschnitt & Rollrasen Fertigstellung'
+        },
+
+        // Stefan Becker
+        {
+            id: 'wt-6',
+            employeeId: 'emp-2',
+            date: '24.01.2026',
+            dateIso: '2026-01-24',
+            monthKey: '2026-01',
+            monthLabel: 'Januar 2026',
+            type: 'aufbau',
+            hours: 4.5,
+            purpose: 'Baumfällung & Häckselarbeiten Notfall Astbruch'
+        },
+        {
+            id: 'wt-7',
+            employeeId: 'emp-2',
+            date: '21.02.2026',
+            dateIso: '2026-02-21',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'aufbau',
+            hours: 4.5,
+            purpose: 'Rückschnitt & Großstrauchbeseitigung'
+        },
+        {
+            id: 'wt-8',
+            employeeId: 'emp-2',
+            date: '06.03.2026',
+            dateIso: '2026-03-06',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'abbau',
+            hours: 4.0,
+            purpose: 'Freizeitausgleich halber Tag'
+        },
+        {
+            id: 'wt-9',
+            employeeId: 'emp-2',
+            date: '21.03.2026',
+            dateIso: '2026-03-21',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'aufbau',
+            hours: 4.0,
+            purpose: 'Frühjahrsbepflanzung Kundenanlagen'
+        },
+
+        // Marius Weber
+        {
+            id: 'wt-10',
+            employeeId: 'emp-3',
+            date: '07.02.2026',
+            dateIso: '2026-02-07',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'aufbau',
+            hours: 5.0,
+            purpose: 'Minibagger-Aushubarbeiten Baugrube'
+        },
+        {
+            id: 'wt-11',
+            employeeId: 'emp-3',
+            date: '28.02.2026',
+            dateIso: '2026-02-28',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'aufbau',
+            hours: 7.0,
+            purpose: 'Samstagseinsatz Naturstein-Wegebau'
+        },
+
+        // Andrei Priala
+        {
+            id: 'wt-12',
+            employeeId: 'emp-4',
+            date: '10.01.2026',
+            dateIso: '2026-01-10',
+            monthKey: '2026-01',
+            monthLabel: 'Januar 2026',
+            type: 'aufbau',
+            hours: 5.0,
+            purpose: 'Kundenberatung & Baustellenaufmaß vor Ort'
+        },
+        {
+            id: 'wt-13',
+            employeeId: 'emp-4',
+            date: '14.02.2026',
+            dateIso: '2026-02-14',
+            monthKey: '2026-02',
+            monthLabel: 'Februar 2026',
+            type: 'aufbau',
+            hours: 5.5,
+            purpose: 'Materialdisposition & Lieferantenabstimmung'
+        },
+        {
+            id: 'wt-14',
+            employeeId: 'emp-4',
+            date: '07.03.2026',
+            dateIso: '2026-03-07',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'aufbau',
+            hours: 6.0,
+            purpose: 'Kalkulation & Großkunden-Angebotserstellung'
+        },
+        {
+            id: 'wt-15',
+            employeeId: 'emp-4',
+            date: '21.03.2026',
+            dateIso: '2026-03-21',
+            monthKey: '2026-03',
+            monthLabel: 'März 2026',
+            type: 'aufbau',
+            hours: 6.0,
+            purpose: 'Projektleitung & Qualitätsabnahme Pflasterflächen'
+        }
+    ]
+};
+
+window.getWorktimeData = function() {
+    const raw = localStorage.getItem(WORKTIME_STORAGE_KEY);
+    if (!raw) {
+        localStorage.setItem(WORKTIME_STORAGE_KEY, JSON.stringify(DEFAULT_WORKTIME_DATA));
+        return JSON.parse(JSON.stringify(DEFAULT_WORKTIME_DATA));
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.employees) && Array.isArray(parsed.entries)) {
+            return parsed;
+        }
+        throw new Error("Invalid worktime structure");
+    } catch (e) {
+        console.warn("Corrupt worktime data, resetting to default", e);
+        localStorage.setItem(WORKTIME_STORAGE_KEY, JSON.stringify(DEFAULT_WORKTIME_DATA));
+        return JSON.parse(JSON.stringify(DEFAULT_WORKTIME_DATA));
+    }
+};
+
+window.saveWorktimeData = function(data) {
+    localStorage.setItem(WORKTIME_STORAGE_KEY, JSON.stringify(data));
+    updateAllAppStatesAndBadges();
+    if (typeof renderWorktimeView === 'function') {
+        renderWorktimeView();
+    }
+    if (window.PalnauCloudSync && typeof window.PalnauCloudSync.pushLocalToCloud === 'function') {
+        window.PalnauCloudSync.pushLocalToCloud();
+    }
+};
+
+let worktimeActiveSubTab = 'cards'; // 'cards' | 'ledger'
+let worktimeMonthFilter = 'all'; // 'all' | 'YYYY-MM'
+let worktimeSearchQuery = '';
+
+window.switchWorktimeSubTab = function(tab) {
+    worktimeActiveSubTab = tab;
+    const btnCards = document.getElementById('btn-wt-tab-cards');
+    const btnLedger = document.getElementById('btn-wt-tab-ledger');
+    const viewCards = document.getElementById('wt-view-cards');
+    const viewLedger = document.getElementById('wt-view-ledger');
+
+    if (btnCards) btnCards.classList.toggle('active', tab === 'cards');
+    if (btnLedger) btnLedger.classList.toggle('active', tab === 'ledger');
+    if (viewCards) viewCards.style.display = tab === 'cards' ? 'block' : 'none';
+    if (viewLedger) viewLedger.style.display = tab === 'ledger' ? 'block' : 'none';
+
+    renderWorktimeView();
+};
+
+window.setWorktimeMonthFilter = function(month) {
+    worktimeMonthFilter = month;
+    const pills = document.querySelectorAll('#wt-month-pills .neu-pill-btn');
+    pills.forEach(btn => {
+        const onclickAttr = btn.getAttribute('onclick') || '';
+        btn.classList.toggle('active', onclickAttr.includes(`'${month}'`));
+    });
+    renderWorktimeView();
+};
+
+window.handleWorktimeSearch = function(val) {
+    worktimeSearchQuery = (val || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('wt-search-clear');
+    if (clearBtn) clearBtn.style.display = val ? 'inline-block' : 'none';
+    renderWorktimeView();
+};
+
+window.clearWorktimeSearch = function() {
+    const input = document.getElementById('wt-search-input');
+    const clearBtn = document.getElementById('wt-search-clear');
+    if (input) input.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    worktimeSearchQuery = '';
+    renderWorktimeView();
+};
+
+window.renderWorktimeView = function() {
+    const wtData = getWorktimeData();
+    const employees = wtData.employees || [];
+    const entries = wtData.entries || [];
+
+    // Filter entries by month if selected
+    const monthFilteredEntries = (worktimeMonthFilter === 'all')
+        ? entries
+        : entries.filter(e => e.monthKey === worktimeMonthFilter);
+
+    // Compute Totals
+    let totalCompanyBalance = 0;
+    let totalAufbau = 0;
+    let totalAbbau = 0;
+
+    employees.forEach(emp => {
+        const empAllEntries = entries.filter(e => e.employeeId === emp.id);
+        const empAufbau = empAllEntries.filter(e => e.type === 'aufbau').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+        const empAbbau = empAllEntries.filter(e => e.type === 'abbau' || e.type === 'auszahlung').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+        totalCompanyBalance += (parseFloat(emp.initialBalance) || 0) + empAufbau - empAbbau;
+    });
+
+    monthFilteredEntries.forEach(e => {
+        const h = parseFloat(e.hours) || 0;
+        if (e.type === 'aufbau') totalAufbau += h;
+        else if (e.type === 'abbau' || e.type === 'auszahlung') totalAbbau += h;
+    });
+
+    // Update KPI Ribbon
+    const kpiBalance = document.getElementById('wt-kpi-total-balance');
+    const kpiEmpCount = document.getElementById('wt-kpi-emp-count');
+    const kpiAufbau = document.getElementById('wt-kpi-total-aufbau');
+    const kpiAbbau = document.getElementById('wt-kpi-total-abbau');
+    const kpiAufbauSub = document.getElementById('wt-kpi-aufbau-sub');
+    const kpiAbbauSub = document.getElementById('wt-kpi-abbau-sub');
+
+    if (kpiBalance) {
+        const sign = totalCompanyBalance > 0 ? '+' : '';
+        kpiBalance.textContent = `${sign}${totalCompanyBalance.toFixed(1).replace('.', ',')} Std.`;
+        kpiBalance.style.color = totalCompanyBalance >= 0 ? '#15803d' : '#b91c1c';
+    }
+    if (kpiEmpCount) {
+        kpiEmpCount.textContent = String(employees.length);
+    }
+    if (kpiAufbau) {
+        kpiAufbau.textContent = `+${totalAufbau.toFixed(1).replace('.', ',')} Std.`;
+    }
+    if (kpiAbbau) {
+        kpiAbbau.textContent = `-${totalAbbau.toFixed(1).replace('.', ',')} Std.`;
+    }
+    if (kpiAufbauSub) {
+        kpiAufbauSub.textContent = worktimeMonthFilter === 'all' ? 'Alle Monate gesamt' : 'Im ausgewählten Monat';
+    }
+    if (kpiAbbauSub) {
+        kpiAbbauSub.textContent = worktimeMonthFilter === 'all' ? 'Alle Monate gesamt' : 'Im ausgewählten Monat';
+    }
+
+    // 1. RENDER TAB 1: EMPLOYEE CARDS
+    const empGrid = document.getElementById('wt-employee-grid');
+    if (empGrid) {
+        let filteredEmployees = employees;
+        if (worktimeSearchQuery) {
+            filteredEmployees = employees.filter(emp => {
+                const name = (emp.name || '').toLowerCase();
+                const role = (emp.role || '').toLowerCase();
+                return name.includes(worktimeSearchQuery) || role.includes(worktimeSearchQuery);
+            });
+        }
+
+        if (filteredEmployees.length === 0) {
+            empGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; padding: 40px; text-align: center; background: #ffffff; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                    <div style="font-size: 2rem; margin-bottom: 8px;">👷‍♂️</div>
+                    <strong style="display: block; font-size: 1.05rem; color: #0f172a; margin-bottom: 4px;">Keine Mitarbeiter gefunden</strong>
+                    <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 16px;">Legen Sie Ihren ersten Mitarbeiter an, um Überstunden und Zeitausgleich zu verwalten.</p>
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="openAddEmployeeModal()">+ Jetzt Mitarbeiter anlegen</button>
+                </div>
+            `;
+        } else {
+            let cardsHtml = '';
+            filteredEmployees.forEach(emp => {
+                const empEntries = entries.filter(e => e.employeeId === emp.id);
+                const empAufbau = empEntries.filter(e => e.type === 'aufbau').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+                const empAbbau = empEntries.filter(e => e.type === 'abbau' || e.type === 'auszahlung').reduce((s, e) => s + (parseFloat(e.hours) || 0), 0);
+                const currentBalance = (parseFloat(emp.initialBalance) || 0) + empAufbau - empAbbau;
+
+                // Balance status styling
+                let heroClass = 'neutral';
+                let balanceLabel = 'Überstunden-Saldo';
+                let glowStatusText = 'Konto ausgeglichen (0,0 h)';
+                if (currentBalance > 0) {
+                    heroClass = 'positive';
+                    balanceLabel = 'Überstunden-Guthaben';
+                    glowStatusText = 'Guthaben im Plus';
+                } else if (currentBalance < 0) {
+                    heroClass = 'negative';
+                    balanceLabel = 'Minusstunden';
+                    glowStatusText = 'Minusstunden (Defizit)';
+                }
+
+                const sign = currentBalance > 0 ? '+' : '';
+                const balanceFormatted = `${sign}${currentBalance.toFixed(1).replace('.', ',')} Std.`;
+
+                // Calculate progress bar scale & width
+                const maxReferenceHours = Math.max(40, Math.ceil(Math.abs(currentBalance) / 10) * 10);
+                const progressWidthPercent = currentBalance === 0 
+                    ? 0 
+                    : Math.min(100, Math.max(8, Math.round((Math.abs(currentBalance) / maxReferenceHours) * 100)));
+                const progressBarRatioText = `${Math.abs(currentBalance).toFixed(1).replace('.', ',')} / ${maxReferenceHours} Std.`;
+
+                // Distinct Initials
+                const initials = emp.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'M';
+
+                // Calculate Month-by-Month summary for this employee
+                const monthsMap = {};
+                empEntries.forEach(e => {
+                    const mk = e.monthKey || '2026-03';
+                    const ml = e.monthLabel || 'März 2026';
+                    if (!monthsMap[mk]) {
+                        monthsMap[mk] = { label: ml, aufbau: 0, abbau: 0 };
+                    }
+                    const h = parseFloat(e.hours) || 0;
+                    if (e.type === 'aufbau') monthsMap[mk].aufbau += h;
+                    else monthsMap[mk].abbau += h;
+                });
+
+                const sortedMonths = Object.keys(monthsMap).sort().reverse();
+                let monthRowsHtml = '';
+                if (sortedMonths.length === 0) {
+                    monthRowsHtml = `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 10px;">Noch keine Monatsbuchungen erfasst</td></tr>`;
+                } else {
+                    sortedMonths.forEach(mk => {
+                        const m = monthsMap[mk];
+                        const mDiff = m.aufbau - m.abbau;
+                        const mDiffSign = mDiff > 0 ? '+' : '';
+                        const mDiffColor = mDiff > 0 ? '#15803d' : (mDiff < 0 ? '#b91c1c' : '#475569');
+                        monthRowsHtml += `
+                            <tr>
+                                <td style="font-weight: 600;">${escapeHtml(m.label)}</td>
+                                <td style="color: #059669; font-weight: 700;">+${m.aufbau.toFixed(1).replace('.', ',')} Std.</td>
+                                <td style="color: #2563eb; font-weight: 700;">-${m.abbau.toFixed(1).replace('.', ',')} Std.</td>
+                                <td style="font-weight: 800; color: ${mDiffColor}; text-align: right;">${mDiffSign}${mDiff.toFixed(1).replace('.', ',')} Std.</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                cardsHtml += `
+                    <div class="worktime-emp-card">
+                        <div class="worktime-emp-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                            <div class="worktime-emp-profile">
+                                <div class="worktime-emp-avatar">${initials}</div>
+                                <div>
+                                    <div class="worktime-emp-name">${escapeHtml(emp.name)}</div>
+                                    <div class="worktime-emp-role">${escapeHtml(emp.role || 'Fachkraft')} • ${emp.weeklyHours || 40}h/Woche</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+                                <button type="button" class="neu-btn" onclick="openEditEmployeeModal('${emp.id}')" title="Mitarbeiterdaten bearbeiten" style="padding: 5px 8px; font-size: 0.78rem; display: inline-flex; align-items: center;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                </button>
+                                <div class="neu-action-menu-wrap">
+                                    <button type="button" class="neu-action-menu-trigger neu-trigger-sm" onclick="toggleActionMenu(event, 'emp-menu-${emp.id}')" title="Weitere Aktionen für ${escapeHtml(emp.name)}">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="1.5"></circle>
+                                            <circle cx="12" cy="5" r="1.5"></circle>
+                                            <circle cx="12" cy="19" r="1.5"></circle>
+                                        </svg>
+                                    </button>
+                                    <div class="neu-action-menu-dropdown" id="emp-menu-${emp.id}">
+                                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); openEditEmployeeModal('${emp.id}');">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            <span>Mitarbeiter bearbeiten</span>
+                                        </button>
+                                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); openWorktimeStatement('${emp.id}');">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                            <span>Kontoauszug / PDF</span>
+                                        </button>
+                                        <div class="neu-menu-divider"></div>
+                                        <button type="button" class="neu-menu-item neu-menu-item-danger" onclick="closeAllActionMenus(); promptDeleteEmployee('${emp.id}');">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                            <span>Mitarbeiter löschen</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Current Balance Hero with Glowing Overtime Progress Bar -->
+                        <div class="worktime-balance-hero ${heroClass}" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                                <div>
+                                    <span class="worktime-balance-label">${balanceLabel}</span>
+                                    <div style="font-size: 0.74rem; color: #64748b; margin-top: 1px;">
+                                        Aufbau: +${empAufbau.toFixed(1).replace('.', ',')} | Abbau: -${empAbbau.toFixed(1).replace('.', ',')} Std.
+                                    </div>
+                                </div>
+                                <span class="worktime-balance-number ${heroClass}">${balanceFormatted}</span>
+                            </div>
+
+                            <!-- Visual Overtime Progress Bar (Green glow for positive, Red glow for negative) -->
+                            <div class="worktime-progress-container">
+                                <div class="worktime-progress-header">
+                                    <span class="worktime-progress-status ${heroClass}">
+                                        <span class="worktime-glow-bulb ${heroClass}"></span>
+                                        ${glowStatusText}
+                                    </span>
+                                    <span class="worktime-progress-ratio">${progressBarRatioText}</span>
+                                </div>
+                                <div class="worktime-progress-track">
+                                    <div class="worktime-progress-fill ${heroClass}" style="width: ${progressWidthPercent}%;" title="${balanceFormatted}"></div>
+                                </div>
+                                <div class="worktime-progress-scale">
+                                    <span>0 Std.</span>
+                                    <span>Referenz: ${maxReferenceHours} Std.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly breakdown table -->
+                        <div style="border: 1px solid #f1f5f9; border-radius: 8px; overflow: hidden; background: #fafafa;">
+                            <table class="worktime-month-stats-table">
+                                <thead>
+                                    <tr>
+                                        <th>Monat</th>
+                                        <th>Aufbau (+)</th>
+                                        <th>Abbau (-)</th>
+                                        <th style="text-align: right;">Monatssaldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${monthRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Quick Actions (Clean and minimalist: Aufbau & Abbau) -->
+                        <div class="worktime-quick-actions" style="grid-template-columns: 1fr 1fr;">
+                            <button type="button" class="worktime-quick-btn worktime-quick-btn-aufbau" onclick="openAddWorktimeEntryModal('${emp.id}', 'aufbau')" title="Überstunden für diesen Mitarbeiter aufbauen">
+                                ➕ Überstunden
+                            </button>
+                            <button type="button" class="worktime-quick-btn worktime-quick-btn-abbau" onclick="openAddWorktimeEntryModal('${emp.id}', 'abbau')" title="Freizeitausgleich / Überstunden abbauen">
+                                ➖ Freizeitausgleich
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            empGrid.innerHTML = cardsHtml;
+        }
+    }
+
+    // 2. RENDER TAB 2: LEDGER TABLE
+    const ledgerTbody = document.getElementById('wt-ledger-tbody');
+    const ledgerCount = document.getElementById('wt-ledger-count');
+    if (ledgerTbody) {
+        let filteredEntries = monthFilteredEntries;
+        if (worktimeSearchQuery) {
+            filteredEntries = filteredEntries.filter(e => {
+                const emp = employees.find(em => em.id === e.employeeId);
+                const empName = (emp ? emp.name : '').toLowerCase();
+                const purp = (e.purpose || '').toLowerCase();
+                return empName.includes(worktimeSearchQuery) || purp.includes(worktimeSearchQuery);
+            });
+        }
+
+        // Sort by date descending
+        const sortedEntries = [...filteredEntries].sort((a, b) => {
+            const da = a.dateIso || a.date;
+            const db = b.dateIso || b.date;
+            return db.localeCompare(da);
+        });
+
+        if (ledgerCount) {
+            ledgerCount.textContent = `${sortedEntries.length} Buchung${sortedEntries.length === 1 ? '' : 'en'}`;
+        }
+
+        if (sortedEntries.length === 0) {
+            ledgerTbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="padding: 30px; text-align: center; color: #94a3b8;">
+                        Keine Überstunden-Buchungen für den gewählten Filter gefunden.
+                    </td>
+                </tr>
+            `;
+        } else {
+            let tRows = '';
+            sortedEntries.forEach(entry => {
+                const emp = employees.find(e => e.id === entry.employeeId);
+                const empName = emp ? escapeHtml(emp.name) : 'Unbekannt';
+                const isAufbau = entry.type === 'aufbau';
+                const badgeClass = isAufbau ? 'badge-aufbau' : 'badge-abbau';
+                const badgeLabel = isAufbau ? '+ Aufbau' : '- Abbau (frei)';
+                const sign = isAufbau ? '+' : '-';
+                const hoursColor = isAufbau ? '#059669' : '#2563eb';
+                const hoursFormatted = `${sign}${(parseFloat(entry.hours) || 0).toFixed(1).replace('.', ',')} Std.`;
+
+                tRows += `
+                    <tr>
+                        <td style="padding: 10px 14px; font-weight: 600; color: #1e293b;">${escapeHtml(entry.date)}</td>
+                        <td style="padding: 10px 14px; font-weight: 700; color: #0f172a;">${empName}</td>
+                        <td style="padding: 10px 14px;"><span class="${badgeClass}">${badgeLabel}</span></td>
+                        <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: ${hoursColor}; font-size: 0.95rem;">${hoursFormatted}</td>
+                        <td style="padding: 10px 14px; color: #334155; font-size: 0.85rem;">${escapeHtml(entry.purpose || '—')}</td>
+                        <td style="padding: 10px 14px; text-align: center; white-space: nowrap;">
+                            <div style="display: inline-flex; gap: 6px; justify-content: center; align-items: center;">
+                                <button type="button" class="neu-btn" onclick="openEditWorktimeEntryModal('${entry.id}')" title="Buchung bearbeiten" style="padding: 4px 8px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    <span>Bearbeiten</span>
+                                </button>
+                                <button type="button" class="neu-btn neu-btn-danger" onclick="deleteWorktimeEntry('${entry.id}')" title="Buchung löschen" style="padding: 4px 7px; font-size: 0.78rem; display: inline-flex; align-items: center;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            ledgerTbody.innerHTML = tRows;
+        }
+    }
+};
+
+// ==========================================================================
+// WORKTIME MODALS MANAGEMENT
+// ==========================================================================
+
+window.openAddEmployeeModal = function() {
+    const modal = document.getElementById('worktime-employee-modal');
+    const title = document.getElementById('wt-emp-modal-title');
+    const deleteBtn = document.getElementById('wt-emp-delete-btn');
+    const form = document.getElementById('wt-employee-form');
+
+    if (form) form.reset();
+    const editIdEl = document.getElementById('wt-emp-edit-id');
+    if (editIdEl) editIdEl.value = '';
+    const weeklyHoursEl = document.getElementById('wt-emp-weekly-hours');
+    if (weeklyHoursEl) weeklyHoursEl.value = '40';
+    const initBalEl = document.getElementById('wt-emp-initial-balance');
+    if (initBalEl) initBalEl.value = '0.0';
+    const statusEl = document.getElementById('wt-emp-status');
+    if (statusEl) statusEl.value = 'active';
+
+    if (title) title.textContent = "Neuen Mitarbeiter anlegen";
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.openEditEmployeeModal = function(empId) {
+    const wtData = getWorktimeData();
+    const emp = (wtData.employees || []).find(e => e.id === empId);
+    if (!emp) return;
+
+    const modal = document.getElementById('worktime-employee-modal');
+    const title = document.getElementById('wt-emp-modal-title');
+    const deleteBtn = document.getElementById('wt-emp-delete-btn');
+
+    const editIdEl = document.getElementById('wt-emp-edit-id');
+    if (editIdEl) editIdEl.value = emp.id;
+    const nameEl = document.getElementById('wt-emp-name');
+    if (nameEl) nameEl.value = emp.name || '';
+    const roleEl = document.getElementById('wt-emp-role');
+    if (roleEl) roleEl.value = emp.role || '';
+    const weeklyHoursEl = document.getElementById('wt-emp-weekly-hours');
+    if (weeklyHoursEl) weeklyHoursEl.value = emp.weeklyHours || 40;
+    const initBalEl = document.getElementById('wt-emp-initial-balance');
+    if (initBalEl) initBalEl.value = emp.initialBalance || 0;
+    const statusEl = document.getElementById('wt-emp-status');
+    if (statusEl) statusEl.value = emp.status || 'active';
+
+    if (title) title.textContent = `Mitarbeiter bearbeiten • ${emp.name}`;
+    if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.closeEmployeeModal = function() {
+    const modal = document.getElementById('worktime-employee-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+};
+
+window.handleSaveEmployee = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const editId = document.getElementById('wt-emp-edit-id').value;
+    const name = (document.getElementById('wt-emp-name').value || '').trim();
+    const role = (document.getElementById('wt-emp-role').value || '').trim();
+    const weeklyHours = parseFloat(document.getElementById('wt-emp-weekly-hours').value) || 40;
+    const initialBalance = parseFloat(document.getElementById('wt-emp-initial-balance').value) || 0;
+    const status = document.getElementById('wt-emp-status').value || 'active';
+
+    if (!name) {
+        showToast("Bitte den Namen des Mitarbeiters eingeben.");
+        return;
+    }
+
+    const wtData = getWorktimeData();
+    if (!Array.isArray(wtData.employees)) wtData.employees = [];
+    if (!Array.isArray(wtData.entries)) wtData.entries = [];
+
+    if (editId) {
+        // Edit existing
+        const idx = wtData.employees.findIndex(em => em.id === editId);
+        if (idx !== -1) {
+            wtData.employees[idx].name = name;
+            wtData.employees[idx].role = role;
+            wtData.employees[idx].weeklyHours = weeklyHours;
+            wtData.employees[idx].initialBalance = initialBalance;
+            wtData.employees[idx].status = status;
+        }
+        showToast(`Mitarbeiter "${name}" aktualisiert.`);
+    } else {
+        // Add new
+        const newEmp = {
+            id: 'emp-' + Date.now(),
+            name,
+            role: role || 'Fachkraft GalaBau',
+            weeklyHours,
+            initialBalance,
+            status
+        };
+        wtData.employees.push(newEmp);
+        showToast(`Mitarbeiter "${name}" erfolgreich angelegt!`);
+    }
+
+    saveWorktimeData(wtData);
+    closeEmployeeModal();
+};
+
+window.promptDeleteEmployee = function(empId) {
+    if (!empId) return;
+    const wtData = getWorktimeData();
+    const emp = (wtData.employees || []).find(e => e.id === empId);
+    if (!emp) return;
+
+    const entryCount = (wtData.entries || []).filter(e => e.employeeId === empId).length;
+    let msg = `Möchten Sie den Mitarbeiter "${emp.name}" wirklich aus dem Arbeitszeitkonto löschen?`;
+    if (entryCount > 0) {
+        msg += ` ACHTUNG: Es werden auch alle ${entryCount} gebuchten Überstunden- und Ausgleichseinträge dieses Mitarbeiters unwiderruflich gelöscht!`;
+    }
+
+    showAppConfirm(
+        msg,
+        function() {
+            const currentData = getWorktimeData();
+            currentData.employees = (currentData.employees || []).filter(e => e.id !== empId);
+            currentData.entries = (currentData.entries || []).filter(e => e.employeeId !== empId);
+
+            saveWorktimeData(currentData);
+            closeEmployeeModal();
+            showToast(`Mitarbeiter "${emp.name}" wurde erfolgreich gelöscht.`);
+        },
+        {
+            title: `Mitarbeiter "${emp.name}" löschen?`,
+            confirmText: "Mitarbeiter unwiderruflich löschen",
+            cancelText: "Abbrechen",
+            btnColor: "#dc2626"
+        }
+    );
+};
+
+window.handleDeleteCurrentEmployee = function() {
+    const editId = document.getElementById('wt-emp-edit-id').value;
+    if (!editId) return;
+    promptDeleteEmployee(editId);
+};
+
+// --- Worktime Entry Modal ---
+
+window.openAddWorktimeEntryModal = function(preselectedEmpId, defaultType) {
+    const wtData = getWorktimeData();
+    const employees = (wtData.employees || []).filter(e => e.status !== 'inactive');
+    if (employees.length === 0) {
+        showToast("Bitte legen Sie zuerst mindestens einen Mitarbeiter an.");
+        openAddEmployeeModal();
+        return;
+    }
+
+    const modal = document.getElementById('worktime-entry-modal');
+    const title = document.getElementById('wt-entry-modal-title');
+    const deleteBtn = document.getElementById('wt-entry-delete-btn');
+    const form = document.getElementById('wt-entry-form');
+    const selectEmp = document.getElementById('wt-entry-employee-id');
+
+    if (form) form.reset();
+    document.getElementById('wt-entry-edit-id').value = '';
+
+    // Populate employee select
+    if (selectEmp) {
+        selectEmp.innerHTML = employees.map(emp => `
+            <option value="${emp.id}">${escapeHtml(emp.name)} (${escapeHtml(emp.role || 'Fachkraft')})</option>
+        `).join('');
+        if (preselectedEmpId) {
+            selectEmp.value = preselectedEmpId;
+        }
+    }
+
+    // Default Date Today
+    const today = new Date();
+    const dayStr = String(today.getDate()).padStart(2, '0');
+    const monthStr = String(today.getMonth() + 1).padStart(2, '0');
+    const yearStr = today.getFullYear();
+    const dateInput = document.getElementById('wt-entry-date');
+    if (dateInput) dateInput.value = `${dayStr}.${monthStr}.${yearStr}`;
+    const hoursInput = document.getElementById('wt-entry-hours');
+    if (hoursInput) hoursInput.value = '4.0';
+
+    // Type radio
+    const chosenType = defaultType || 'aufbau';
+    const radios = document.getElementsByName('wt-entry-type-radio');
+    radios.forEach(r => {
+        r.checked = (r.value === chosenType);
+    });
+    updateWorktimeTypeVisual(chosenType);
+
+    if (title) title.textContent = chosenType === 'abbau' ? "Freizeitausgleich / Abbau erfassen" : "Überstunden buchen (+ Aufbau)";
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.openEditWorktimeEntryModal = function(entryId) {
+    const wtData = getWorktimeData();
+    const entry = (wtData.entries || []).find(e => e.id === entryId);
+    if (!entry) return;
+
+    const modal = document.getElementById('worktime-entry-modal');
+    const title = document.getElementById('wt-entry-modal-title');
+    const deleteBtn = document.getElementById('wt-entry-delete-btn');
+    const selectEmp = document.getElementById('wt-entry-employee-id');
+
+    // Populate employee select
+    if (selectEmp) {
+        selectEmp.innerHTML = (wtData.employees || []).map(emp => `
+            <option value="${emp.id}">${escapeHtml(emp.name)} (${escapeHtml(emp.role || 'Fachkraft')})</option>
+        `).join('');
+        selectEmp.value = entry.employeeId;
+    }
+
+    const editIdEl = document.getElementById('wt-entry-edit-id');
+    if (editIdEl) editIdEl.value = entry.id;
+    const dateEl = document.getElementById('wt-entry-date');
+    if (dateEl) dateEl.value = entry.date || '';
+    const hoursEl = document.getElementById('wt-entry-hours');
+    if (hoursEl) hoursEl.value = entry.hours || 0;
+    const purposeEl = document.getElementById('wt-entry-purpose');
+    if (purposeEl) purposeEl.value = entry.purpose || '';
+
+    const radios = document.getElementsByName('wt-entry-type-radio');
+    radios.forEach(r => {
+        r.checked = (r.value === entry.type);
+    });
+    updateWorktimeTypeVisual(entry.type);
+
+    if (title) title.textContent = "Überstunden-Buchung bearbeiten";
+    if (deleteBtn) deleteBtn.style.display = 'inline-block';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.closeWorktimeEntryModal = function() {
+    const modal = document.getElementById('worktime-entry-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+};
+
+window.updateWorktimeTypeVisual = function(type) {
+    const radios = document.getElementsByName('wt-entry-type-radio');
+    radios.forEach(r => {
+        const parent = r.closest('label');
+        if (parent) {
+            if (r.checked) {
+                parent.style.borderColor = r.value === 'aufbau' ? '#059669' : '#2563eb';
+                parent.style.background = r.value === 'aufbau' ? '#ecfdf5' : '#eff6ff';
+            } else {
+                parent.style.borderColor = '#cbd5e1';
+                parent.style.background = '#f8fafc';
+            }
+        }
+    });
+};
+
+window.setWorktimeQuickPurpose = function(text) {
+    const input = document.getElementById('wt-entry-purpose');
+    if (input) {
+        input.value = text;
+        input.focus();
+    }
+};
+
+window.handleSaveWorktimeEntry = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const editId = document.getElementById('wt-entry-edit-id').value;
+    const employeeId = document.getElementById('wt-entry-employee-id').value;
+    const dateStr = (document.getElementById('wt-entry-date').value || '').trim();
+    const hours = parseFloat(document.getElementById('wt-entry-hours').value) || 0;
+    const purpose = (document.getElementById('wt-entry-purpose').value || '').trim();
+
+    let chosenType = 'aufbau';
+    const radios = document.getElementsByName('wt-entry-type-radio');
+    radios.forEach(r => {
+        if (r.checked) chosenType = r.value;
+    });
+
+    if (!employeeId) {
+        showToast("Bitte einen Mitarbeiter auswählen.");
+        return;
+    }
+    if (hours <= 0) {
+        showToast("Bitte eine Stundenzahl größer 0 angeben.");
+        return;
+    }
+    if (!dateStr) {
+        showToast("Bitte ein Datum angeben.");
+        return;
+    }
+
+    // Parse Month Key & Label
+    const dateParts = dateStr.split('.');
+    let monthKey = '2026-03';
+    let monthLabel = 'März 2026';
+    let dateIso = new Date().toISOString().slice(0, 10);
+
+    const monthNames = [
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember"
+    ];
+
+    if (dateParts.length === 3) {
+        const d = dateParts[0].padStart(2, '0');
+        const m = dateParts[1].padStart(2, '0');
+        const y = dateParts[2].length === 2 ? '20' + dateParts[2] : dateParts[2];
+        monthKey = `${y}-${m}`;
+        dateIso = `${y}-${m}-${d}`;
+        const mIdx = parseInt(m, 10) - 1;
+        if (mIdx >= 0 && mIdx < 12) {
+            monthLabel = `${monthNames[mIdx]} ${y}`;
+        }
+    }
+
+    const wtData = getWorktimeData();
+    const emp = wtData.employees.find(em => em.id === employeeId);
+    const empName = emp ? emp.name : 'Mitarbeiter';
+
+    if (editId) {
+        const idx = wtData.entries.findIndex(en => en.id === editId);
+        if (idx !== -1) {
+            wtData.entries[idx] = {
+                ...wtData.entries[idx],
+                employeeId,
+                date: dateStr,
+                dateIso,
+                monthKey,
+                monthLabel,
+                type: chosenType,
+                hours,
+                purpose
+            };
+        }
+        showToast(`Buchung für ${empName} aktualisiert.`);
+    } else {
+        const newEntry = {
+            id: 'wt-' + Date.now(),
+            employeeId,
+            date: dateStr,
+            dateIso,
+            monthKey,
+            monthLabel,
+            type: chosenType,
+            hours,
+            purpose
+        };
+        wtData.entries.push(newEntry);
+        const actionWord = chosenType === 'aufbau' ? `+${hours.toFixed(1).replace('.', ',')} Überstunden aufgebaut` : `-${hours.toFixed(1).replace('.', ',')} Überstunden abgebaut`;
+        showToast(`${empName}: ${actionWord}`);
+    }
+
+    saveWorktimeData(wtData);
+    closeWorktimeEntryModal();
+};
+
+window.handleDeleteCurrentWorktimeEntry = function() {
+    const editId = document.getElementById('wt-entry-edit-id').value;
+    if (!editId) return;
+    deleteWorktimeEntry(editId);
+};
+
+window.deleteWorktimeEntry = function(entryId) {
+    if (!entryId) return;
+    showAppConfirm(
+        "Möchten Sie diesen Überstunden-Eintrag wirklich löschen?",
+        function() {
+            const wtData = getWorktimeData();
+            wtData.entries = (wtData.entries || []).filter(e => e.id !== entryId);
+            saveWorktimeData(wtData);
+            if (typeof closeWorktimeEntryModal === 'function') {
+                closeWorktimeEntryModal();
+            }
+            showToast("Buchung gelöscht.");
+        },
+        {
+            title: "Buchung löschen?",
+            confirmText: "Löschen",
+            cancelText: "Abbrechen",
+            btnColor: "#dc2626"
+        }
+    );
+};
+
+// --- Statement & CSV Export ---
+
+window.openWorktimeStatement = function(empId) {
+    const wtData = getWorktimeData();
+    const emp = (wtData.employees || []).find(e => e.id === empId);
+    if (!emp) return;
+
+    const modal = document.getElementById('worktime-statement-modal');
+    const sheet = document.getElementById('worktime-statement-sheet');
+    if (!modal || !sheet) return;
+
+    const entries = (wtData.entries || [])
+        .filter(e => e.employeeId === emp.id)
+        .sort((a, b) => (a.dateIso || a.date).localeCompare(b.dateIso || b.date));
+
+    let runningBalance = parseFloat(emp.initialBalance) || 0;
+    let totalAufbau = 0;
+    let totalAbbau = 0;
+
+    let rowsHtml = '';
+    entries.forEach(e => {
+        const h = parseFloat(e.hours) || 0;
+        const isAufbau = e.type === 'aufbau';
+        if (isAufbau) {
+            totalAufbau += h;
+            runningBalance += h;
+        } else {
+            totalAbbau += h;
+            runningBalance -= h;
+        }
+
+        const typeLabel = isAufbau ? '+ Aufbau (Mehrarbeit)' : '- Abbau (Freizeitausgleich)';
+        const typeColor = isAufbau ? '#15803d' : '#2563eb';
+        const hoursSign = isAufbau ? '+' : '-';
+
+        rowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 8px 10px; font-weight: 600;">${escapeHtml(e.date)}</td>
+                <td style="padding: 8px 10px; color: ${typeColor}; font-weight: 700;">${typeLabel}</td>
+                <td style="padding: 8px 10px; font-weight: 800; text-align: right; color: ${typeColor};">${hoursSign}${h.toFixed(1).replace('.', ',')} Std.</td>
+                <td style="padding: 8px 10px; color: #334155;">${escapeHtml(e.purpose || '—')}</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #0f172a;">${runningBalance > 0 ? '+' : ''}${runningBalance.toFixed(1).replace('.', ',')} Std.</td>
+            </tr>
+        `;
+    });
+
+    if (entries.length === 0) {
+        rowsHtml = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: #94a3b8;">Keine Buchungen vorhanden.</td></tr>`;
+    }
+
+    const finalSign = runningBalance > 0 ? '+' : '';
+    const finalColor = runningBalance > 0 ? '#15803d' : (runningBalance < 0 ? '#b91c1c' : '#0f172a');
+
+    sheet.innerHTML = `
+        <div style="font-family: inherit; color: #0f172a; line-height: 1.45;">
+            <!-- Header -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 20px;">
+                <div>
+                    <h1 style="font-size: 1.35rem; font-weight: 800; margin: 0 0 4px 0; color: #0f172a;">Palnau Gartenbau GmbH</h1>
+                    <div style="font-size: 0.85rem; color: #475569;">Reihelberg 3 • 75210 Keltern • Tel: 07231 466641</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.1rem; font-weight: 800; color: #ea580c;">ARBEITSZEITKONTO-NACHWEIS</div>
+                    <div style="font-size: 0.82rem; color: #64748b;">Stand: ${new Date().toLocaleDateString('de-DE')}</div>
+                </div>
+            </div>
+
+            <!-- Employee Meta Box -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;">
+                <div>
+                    <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 800; color: #64748b; display: block;">Mitarbeiter</span>
+                    <strong style="font-size: 1.15rem; color: #0f172a;">${escapeHtml(emp.name)}</strong>
+                    <div style="font-size: 0.85rem; color: #475569;">${escapeHtml(emp.role || 'Fachkraft')}</div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 800; color: #64748b; display: block;">Wochenarbeitszeit</span>
+                    <strong style="font-size: 1rem; color: #0f172a;">${emp.weeklyHours || 40} Stunden / Woche</strong>
+                    <div style="font-size: 0.85rem; color: #64748b;">Startsaldo: ${(parseFloat(emp.initialBalance) || 0).toFixed(1).replace('.', ',')} Std.</div>
+                </div>
+            </div>
+
+            <!-- Ledger Table -->
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1; text-align: left;">
+                        <th style="padding: 8px 10px;">Datum</th>
+                        <th style="padding: 8px 10px;">Vorgang</th>
+                        <th style="padding: 8px 10px; text-align: right;">Stunden</th>
+                        <th style="padding: 8px 10px;">Einsatz / Grund</th>
+                        <th style="padding: 8px 10px; text-align: right;">Stand Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+
+            <!-- Summary Box -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 36px;">
+                <div style="width: 320px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                        <span>Gesamt Überstunden aufgebaut:</span>
+                        <strong style="color: #15803d;">+${totalAufbau.toFixed(1).replace('.', ',')} Std.</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+                        <span>Gesamt Freizeitausgleich abgebaut:</span>
+                        <strong style="color: #2563eb;">-${totalAbbau.toFixed(1).replace('.', ',')} Std.</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 800; border-top: 1.5px solid #cbd5e1; padding-top: 6px; color: ${finalColor};">
+                        <span>Aktuelles Überstunden-Saldo:</span>
+                        <span>${finalSign}${runningBalance.toFixed(1).replace('.', ',')} Std.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signatures -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; padding-top: 20px; border-top: 1px dashed #cbd5e1;">
+                <div>
+                    <div style="border-bottom: 1px solid #475569; height: 35px; margin-bottom: 6px;"></div>
+                    <div style="font-size: 0.8rem; color: #475569; text-align: center;">Datum, Unterschrift Arbeitnehmer (${escapeHtml(emp.name)})</div>
+                </div>
+                <div>
+                    <div style="border-bottom: 1px solid #475569; height: 35px; margin-bottom: 6px;"></div>
+                    <div style="font-size: 0.8rem; color: #475569; text-align: center;">Datum, Unterschrift Palnau Gartenbau GmbH</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.style.display = 'flex';
+    modal.classList.add('open');
+};
+
+window.closeWorktimeStatementModal = function() {
+    const modal = document.getElementById('worktime-statement-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+};
+
+window.printWorktimeStatementSheet = function() {
+    const sheet = document.getElementById('worktime-statement-sheet');
+    if (!sheet) return;
+
+    const printWin = window.open('', '', 'width=850,height=900');
+    if (!printWin) {
+        window.print();
+        return;
+    }
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Arbeitszeitkonto-Nachweis • Palnau Gartenbau GmbH</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 30px; color: #0f172a; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { padding: 8px 10px; font-size: 13px; }
+                @media print {
+                    body { margin: 15mm; }
+                }
+            </style>
+        </head>
+        <body>
+            ${sheet.innerHTML}
+            <script>
+                window.onload = function() { window.print(); }
+            </script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+};
+
+window.exportWorktimeToCsv = function() {
+    const wtData = getWorktimeData();
+    const employees = wtData.employees || [];
+    const entries = wtData.entries || [];
+
+    const rows = [
+        ["Datum", "Mitarbeiter", "Position", "Buchungsart", "Stunden", "Monat", "Grund / Baustelle"]
+    ];
+
+    entries.forEach(e => {
+        const emp = employees.find(em => em.id === e.employeeId);
+        const empName = emp ? emp.name : 'Unbekannt';
+        const empRole = emp ? (emp.role || '') : '';
+        const typeLabel = e.type === 'aufbau' ? 'Aufbau' : 'Abbau';
+        const sign = e.type === 'aufbau' ? '+' : '-';
+        const hVal = (parseFloat(e.hours) || 0).toFixed(2);
+
+        rows.push([
+            `"${e.date}"`,
+            `"${empName.replace(/"/g, '""')}"`,
+            `"${empRole.replace(/"/g, '""')}"`,
+            `"${typeLabel}"`,
+            `"${sign}${hVal}"`,
+            `"${e.monthLabel || e.monthKey || ''}"`,
+            `"${(e.purpose || '').replace(/"/g, '""')}"`
+        ]);
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Palnau_Arbeitszeitkonto_Ueberstunden_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Arbeitszeitkonto als CSV exportiert!");
+};
+
+/* ==========================================================================
+   APP 6: MONATLICHE BETRIEBSAUSGABEN, FIXKOSTEN & SONDERABWEICHUNGEN
+   ========================================================================== */
+
+const EXPENSES_STORAGE_KEY = 'palnau_monthly_expenses_v1';
+
+const DEFAULT_EXPENSES_DATA = {
+    recurring: [
+        {
+            id: "rec-1",
+            title: "Betriebshof & Lagerhalle Reihelberg 3",
+            category: "Miete & Betriebsstätte",
+            amount: 1450.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Monatliche Kaltmiete + Betriebskostenvorauszahlung",
+            active: true
+        },
+        {
+            id: "rec-2",
+            title: "Löhne & Gehälter (Fachkräfte & Vorarbeiter)",
+            category: "Personalkosten",
+            amount: 5600.00,
+            taxRate: 0,
+            status: "paid",
+            notes: "Grundlöhne Garten- & Landschaftsbau zzgl. SV-Beiträge",
+            active: true
+        },
+        {
+            id: "rec-3",
+            title: "Fuhrpark-Leasing (2x Pritschenwagen & Anhänger)",
+            category: "Fahrzeuge & Fuhrpark",
+            amount: 1280.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Monatliche Leasingrate Mercedes Sprinter & Tandem-Tieflader",
+            active: true
+        },
+        {
+            id: "rec-4",
+            title: "Kraftstoff & Diesel Sammelrechnung",
+            category: "Fahrzeuge & Fuhrpark",
+            amount: 850.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Tankkarten-Abrechnung Baustellenfahrzeuge & Rüstfahrten",
+            active: true
+        },
+        {
+            id: "rec-5",
+            title: "Maschinenwartung & Rüstgeräte-Service",
+            category: "Werkzeuge & Maschinen",
+            amount: 480.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Wartungsvertrag Stihl Motorsägen, Rüttelplatten & Schneidegeräte",
+            active: true
+        },
+        {
+            id: "rec-6",
+            title: "Betriebshaftpflicht & BG Bau",
+            category: "Versicherungen & Beiträge",
+            amount: 420.00,
+            taxRate: 0,
+            status: "paid",
+            notes: "GalaBau-Haftpflicht VHV & Berufsgenossenschaft der Bauwirtschaft",
+            active: true
+        },
+        {
+            id: "rec-7",
+            title: "Steuerberater, Buchhaltung & IT-Systeme",
+            category: "Büro & Beratung",
+            amount: 390.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Monatliche Betreuung Kanzlei Pforzheim & Cloud-Infrastruktur",
+            active: true
+        },
+        {
+            id: "rec-8",
+            title: "Werbung & Regionale Akquise (Google & Anzeigen)",
+            category: "Marketing & Werbung",
+            amount: 250.00,
+            taxRate: 19,
+            status: "paid",
+            notes: "Lokales Marketing Keltern, Pforzheim und Enzkreis",
+            active: true
+        }
+    ],
+    deviations: []
+};
+
+window.expensesSelectedMonth = '09'; // Standardmäßig September
+window.expensesSelectedYear = 2026;
+window.expensesActiveSubTab = 'month';
+
+// --- Storage Functions ---
+
+window.getExpensesData = function() {
+    try {
+        const raw = localStorage.getItem(EXPENSES_STORAGE_KEY);
+        if (!raw) {
+            localStorage.setItem(EXPENSES_STORAGE_KEY, JSON.stringify(DEFAULT_EXPENSES_DATA));
+            return JSON.parse(JSON.stringify(DEFAULT_EXPENSES_DATA));
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed.recurring || !Array.isArray(parsed.recurring)) {
+            parsed.recurring = JSON.parse(JSON.stringify(DEFAULT_EXPENSES_DATA.recurring));
+        }
+        if (!parsed.deviations || !Array.isArray(parsed.deviations)) {
+            parsed.deviations = [];
+        }
+
+        let needsSave = false;
+        const dummyDevIds = ['dev-1', 'dev-2', 'dev-3', 'dev-4', 'dev-5', 'dev-6', 'dev-7'];
+
+        // 1. September-Einträge des Nutzers erfassen und auf alle Monate als Fixkosten übertragen
+        const userEntriesToTransfer = [];
+        parsed.deviations.forEach(d => {
+            const isDummy = dummyDevIds.includes(d.id);
+            const isSeptember = d.monthKey === '2026-09' || d.monthKey === '2025-09' || 
+                                (typeof d.monthKey === 'string' && d.monthKey.endsWith('-09')) ||
+                                (typeof d.date === 'string' && (d.date.includes('.09.') || d.date.includes('/09/'))) ||
+                                (typeof d.title === 'string' && d.title.toLowerCase().includes('september')) ||
+                                (typeof d.notes === 'string' && d.notes.toLowerCase().includes('september'));
+
+            // Benutzerdefinierte September-Einträge oder vom Benutzer erfasste Sonderausgaben als Fixkosten übernehmen
+            if (isSeptember || !isDummy) {
+                userEntriesToTransfer.push(d);
+            }
+        });
+
+        if (userEntriesToTransfer.length > 0) {
+            userEntriesToTransfer.forEach(entry => {
+                const existingIdx = parsed.recurring.findIndex(r => 
+                    String(r.id) === String(entry.id) ||
+                    (r.title && entry.title && r.title.trim().toLowerCase() === entry.title.trim().toLowerCase())
+                );
+                if (existingIdx !== -1) {
+                    parsed.recurring[existingIdx] = {
+                        ...parsed.recurring[existingIdx],
+                        title: entry.title,
+                        category: entry.category || parsed.recurring[existingIdx].category || 'Sonstige Ausgaben',
+                        amount: parseFloat(entry.amount) || parsed.recurring[existingIdx].amount,
+                        taxRate: entry.taxRate !== undefined ? entry.taxRate : parsed.recurring[existingIdx].taxRate,
+                        status: entry.status || parsed.recurring[existingIdx].status || 'paid',
+                        notes: entry.notes || parsed.recurring[existingIdx].notes || '',
+                        active: true
+                    };
+                } else {
+                    parsed.recurring.push({
+                        id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+                        title: entry.title,
+                        category: entry.category || 'Sonstige Ausgaben',
+                        amount: parseFloat(entry.amount) || 0,
+                        taxRate: entry.taxRate !== undefined ? entry.taxRate : 19,
+                        status: entry.status || 'paid',
+                        notes: entry.notes || '',
+                        active: true
+                    });
+                }
+            });
+            needsSave = true;
+        }
+
+        // 2. Dummy-Einträge und abweichende Kosten vollständig bereinigen
+        if (parsed.deviations.length > 0) {
+            parsed.deviations = [];
+            needsSave = true;
+        }
+
+        if (needsSave) {
+            localStorage.setItem(EXPENSES_STORAGE_KEY, JSON.stringify(parsed));
+        }
+
+        return parsed;
+    } catch (e) {
+        console.warn("Error reading expenses data, fallback to defaults", e);
+        return JSON.parse(JSON.stringify(DEFAULT_EXPENSES_DATA));
+    }
+};
+
+window.saveExpensesData = function(data) {
+    try {
+        localStorage.setItem(EXPENSES_STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.error("Error saving expenses data", e);
+    }
+    if (typeof updateAllAppStatesAndBadges === 'function') {
+        updateAllAppStatesAndBadges();
+    }
+    if (typeof renderPowerBiDashboard === 'function' && currentActiveView === 'quarters') {
+        renderPowerBiDashboard();
+    }
+    if (typeof renderExpensesView === 'function' && currentActiveView === 'expenses') {
+        renderExpensesView();
+    }
+    if (window.PalnauCloudSync && typeof PalnauCloudSync.requestSync === 'function') {
+        PalnauCloudSync.requestSync();
+    }
+};
+
+// --- Financial Calculation Helpers for Single Month & Full Year ---
+
+window.getExpensesForMonth = function(year, monthKeyOrIdx) {
+    const data = getExpensesData();
+    const curYear = parseInt(year, 10) || 2026;
+    let mStr = String(monthKeyOrIdx);
+    if (mStr.length === 1) mStr = '0' + mStr;
+    if (mStr.includes('-')) {
+        mStr = mStr.split('-')[1];
+    }
+    const fullKey = `${curYear}-${mStr}`;
+
+    let recurringTotal = 0;
+    let recurringNet = 0;
+    let recurringVat = 0;
+    const categoryBreakdown = {};
+
+    // 1. Regular Recurring Costs (active ones)
+    (data.recurring || []).forEach(item => {
+        if (item.active === false) return;
+        const gross = parseFloat(item.amount) || 0;
+        const rate = parseFloat(item.taxRate) || 0;
+        const net = rate > 0 ? (gross / (1 + rate / 100)) : gross;
+        const vat = gross - net;
+
+        recurringTotal += gross;
+        recurringNet += net;
+        recurringVat += vat;
+
+        const cat = item.category || 'Sonstige Ausgaben';
+        categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + gross;
+    });
+
+    // 2. Month-specific deviations (Sonderausgaben / Abweichungen)
+    let deviationsTotal = 0;
+    let deviationsNet = 0;
+    let deviationsVat = 0;
+    const deviationsList = [];
+
+    (data.deviations || []).forEach(item => {
+        if (item.monthKey === fullKey) {
+            const gross = parseFloat(item.amount) || 0;
+            const rate = parseFloat(item.taxRate) || 0;
+            const net = rate > 0 ? (gross / (1 + rate / 100)) : gross;
+            const vat = gross - net;
+
+            deviationsTotal += gross;
+            deviationsNet += net;
+            deviationsVat += vat;
+
+            const cat = item.category || 'Sonstige Ausgaben';
+            categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + gross;
+            deviationsList.push(item);
+        }
+    });
+
+    const totalGross = recurringTotal + deviationsTotal;
+    const totalNet = recurringNet + deviationsNet;
+    const estimatedVat = recurringVat + deviationsVat;
+
+    return {
+        year: curYear,
+        monthStr: mStr,
+        fullKey,
+        totalGross,
+        totalNet,
+        estimatedVat,
+        recurringTotal,
+        deviationsTotal,
+        categoryBreakdown,
+        deviationsList,
+        count: (data.recurring || []).filter(r => r.active !== false).length + deviationsList.length
+    };
+};
+
+window.getExpensesForYear = function(year) {
+    const curYear = parseInt(year, 10) || 2026;
+    const data = getExpensesData();
+
+    let totalGross = 0;
+    let totalNet = 0;
+    let totalVat = 0;
+    let totalRecurring = 0;
+    let totalDeviations = 0;
+    const categoryBreakdown = {};
+    const allDeviations = [];
+
+    // Recurring costs run 12 times a year
+    (data.recurring || []).forEach(item => {
+        if (item.active === false) return;
+        const grossMonthly = parseFloat(item.amount) || 0;
+        const rate = parseFloat(item.taxRate) || 0;
+        const netMonthly = rate > 0 ? (grossMonthly / (1 + rate / 100)) : grossMonthly;
+        const vatMonthly = grossMonthly - netMonthly;
+
+        const grossAnnual = grossMonthly * 12;
+        const netAnnual = netMonthly * 12;
+        const vatAnnual = vatMonthly * 12;
+
+        totalGross += grossAnnual;
+        totalNet += netAnnual;
+        totalVat += vatAnnual;
+        totalRecurring += grossAnnual;
+
+        const cat = item.category || 'Sonstige Ausgaben';
+        categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + grossAnnual;
+    });
+
+    // Year deviations
+    (data.deviations || []).forEach(item => {
+        if ((item.monthKey || '').startsWith(String(curYear))) {
+            const gross = parseFloat(item.amount) || 0;
+            const rate = parseFloat(item.taxRate) || 0;
+            const net = rate > 0 ? (gross / (1 + rate / 100)) : gross;
+            const vat = gross - net;
+
+            totalGross += gross;
+            totalNet += net;
+            totalVat += vat;
+            totalDeviations += gross;
+
+            const cat = item.category || 'Sonstige Ausgaben';
+            categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + gross;
+            allDeviations.push(item);
+        }
+    });
+
+    return {
+        year: curYear,
+        totalGross,
+        totalNet,
+        totalVat,
+        totalRecurring,
+        totalDeviations,
+        categoryBreakdown,
+        allDeviations
+    };
+};
+
+// --- View Subtabs & Filters ---
+
+window.switchExpensesSubTab = function(subTab) {
+    window.expensesActiveSubTab = subTab;
+
+    const views = {
+        'month': document.getElementById('exp-view-month'),
+        'recurring': document.getElementById('exp-view-recurring'),
+        'matrix': document.getElementById('exp-view-matrix')
+    };
+
+    Object.entries(views).forEach(([k, el]) => {
+        if (el) el.style.display = (k === subTab) ? 'block' : 'none';
+    });
+
+    const buttons = {
+        'month': document.getElementById('btn-exp-tab-month'),
+        'recurring': document.getElementById('btn-exp-tab-recurring'),
+        'matrix': document.getElementById('btn-exp-tab-matrix')
+    };
+
+    Object.entries(buttons).forEach(([k, btn]) => {
+        if (btn) btn.classList.toggle('active', k === subTab);
+    });
+
+    renderExpensesView();
+};
+
+window.setExpensesMonthFilter = function(monthStr) {
+    if (monthStr.length === 1) monthStr = '0' + monthStr;
+    window.expensesSelectedMonth = monthStr;
+    renderExpensesView();
+    if (typeof updateAllAppStatesAndBadges === 'function') {
+        updateAllAppStatesAndBadges();
+    }
+};
+
+window.setExpensesYearFilter = function(year, btnEl) {
+    window.expensesSelectedYear = year;
+    const parent = btnEl ? btnEl.parentElement : document.getElementById('exp-year-pills');
+    if (parent) {
+        parent.querySelectorAll('.neu-filter-pill').forEach(b => b.classList.remove('active'));
+        if (btnEl) btnEl.classList.add('active');
+    }
+    renderExpensesView();
+    if (typeof updateAllAppStatesAndBadges === 'function') {
+        updateAllAppStatesAndBadges();
+    }
+};
+
+// --- Expenses UI Rendering ---
+
+window.renderExpensesView = function() {
+    const curYear = window.expensesSelectedYear === 'all' ? 2026 : (parseInt(window.expensesSelectedYear, 10) || 2026);
+    const curMonth = window.expensesSelectedMonth || '03';
+    const monthIdx = parseInt(curMonth, 10) - 1;
+    const monthName = GERMAN_MONTH_NAMES[monthIdx] || 'März';
+
+    const monthExp = getExpensesForMonth(curYear, curMonth);
+    const yearExp = getExpensesForYear(curYear);
+
+    // 1. Month Pills Bar
+    const pillsContainer = document.getElementById('exp-month-pills');
+    if (pillsContainer) {
+        let pillsHtml = '';
+        for (let m = 0; m < 12; m++) {
+            const mKey = String(m + 1).padStart(2, '0');
+            const isSel = (mKey === curMonth);
+            const mStat = getExpensesForMonth(curYear, mKey);
+            const hasDev = (mStat.deviationsList && mStat.deviationsList.length > 0);
+            pillsHtml += `
+                <button type="button" class="neu-filter-pill ${isSel ? 'active' : ''}" onclick="setExpensesMonthFilter('${mKey}')" style="position: relative; display: flex; align-items: center; gap: 4px;">
+                    <span>${GERMAN_MONTH_SHORT[m]}</span>
+                    ${hasDev ? '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #e11d48;" title="Monats-Abweichung vorhanden"></span>' : ''}
+                </button>
+            `;
+        }
+        pillsContainer.innerHTML = pillsHtml;
+    }
+
+    // 2. KPI Ribbon
+    const elPeriod = document.getElementById('exp-kpi-period-badge');
+    const elTotVal = document.getElementById('exp-kpi-total-val');
+    const elTotSub = document.getElementById('exp-kpi-total-sub');
+    const elRecVal = document.getElementById('exp-kpi-recurring-val');
+    const elRecSub = document.getElementById('exp-kpi-recurring-sub');
+    const elDevVal = document.getElementById('exp-kpi-deviations-val');
+    const elDevSub = document.getElementById('exp-kpi-deviations-sub');
+    const elAnnVal = document.getElementById('exp-kpi-annual-val');
+
+    if (elPeriod) elPeriod.textContent = `${monthName} ${curYear}`;
+    if (elTotVal) elTotVal.textContent = formatCurrency(monthExp.totalGross);
+    if (elTotSub) elTotSub.textContent = `Netto: ${formatCurrency(monthExp.totalNet)} | MwSt: ${formatCurrency(monthExp.estimatedVat)}`;
+    if (elRecVal) elRecVal.textContent = formatCurrency(monthExp.recurringTotal);
+    if (elRecSub) elRecSub.textContent = `Laufende Basis jeden Monat`;
+    if (elDevVal) elDevVal.textContent = formatCurrency(monthExp.deviationsTotal);
+    if (elDevSub) elDevSub.textContent = `${monthExp.deviationsList.length} Abweichung(en) in ${monthName}`;
+    if (elAnnVal) elAnnVal.textContent = formatCurrency(yearExp.totalGross);
+
+    // 3. Tab 1: Monats-Ausgaben & Abweichungen
+    const devTitle = document.getElementById('exp-deviations-section-title');
+    if (devTitle) devTitle.textContent = `Monatsspezifische Abweichungen & Sonderausgaben (${monthName} ${curYear})`;
+
+    const devContainer = document.getElementById('exp-deviations-container');
+    if (devContainer) {
+        if (monthExp.deviationsList.length === 0) {
+            devContainer.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: #64748b;">
+                    <div style="font-size: 1.5rem; margin-bottom: 6px;">✨</div>
+                    <strong style="color: #0f172a; display: block; margin-bottom: 4px;">Keine Sonderabweichungen für ${monthName} ${curYear}</strong>
+                    <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 14px 0;">In diesem Monat gelten ausschließlich die regulären monatlichen Fixkosten.</p>
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="openAddExpenseModal('deviation')" style="font-size: 0.8rem; padding: 6px 14px;">
+                        + Erste Monatsabweichung für ${monthName} erfassen
+                    </button>
+                </div>
+            `;
+        } else {
+            let tableRows = '';
+            monthExp.deviationsList.forEach(dev => {
+                const statusCls = dev.status === 'paid' ? 'paid' : 'planned';
+                const statusTxt = dev.status === 'paid' ? '✓ Bezahlt' : '⏳ Geplant';
+                tableRows += `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px 14px; font-weight: 700; color: #0f172a;">${escapeHtml(dev.date || dev.monthKey)}</td>
+                        <td style="padding: 10px 14px;">
+                            <strong style="display: block; color: #0f172a; font-size: 0.9rem;">${escapeHtml(dev.title)}</strong>
+                            ${dev.notes ? `<span style="font-size: 0.75rem; color: #64748b;">${escapeHtml(dev.notes)}</span>` : ''}
+                        </td>
+                        <td style="padding: 10px 14px;">
+                            <span class="expenses-category-tag">${escapeHtml(dev.category || 'Sonstiges')}</span>
+                        </td>
+                        <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #be123c; font-size: 0.95rem;">
+                            ${formatCurrency(dev.amount)}
+                        </td>
+                        <td style="padding: 10px 14px; text-align: center; font-size: 0.8rem; color: #64748b;">
+                            ${dev.taxRate || 0}% MwSt
+                        </td>
+                        <td style="padding: 10px 14px; text-align: center;">
+                            <span class="expenses-status-pill ${statusCls}">${statusTxt}</span>
+                        </td>
+                        <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
+                            <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
+                                <button type="button" class="neu-btn" onclick="openEditExpenseModal('${dev.id}', true)" title="Abweichung bearbeiten" style="padding: 5px 10px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    <span>Bearbeiten</span>
+                                </button>
+                                <button type="button" class="neu-btn neu-btn-danger" onclick="deleteExpenseItem('${dev.id}', true)" title="Abweichung löschen" style="padding: 5px 8px; font-size: 0.8rem; display: inline-flex; align-items: center;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            devContainer.innerHTML = `
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: #fff1f2; border-bottom: 2px solid #fecdd3; text-align: left; font-size: 0.75rem; color: #9f1239; text-transform: uppercase;">
+                                <th style="padding: 8px 14px;">Belegdatum</th>
+                                <th style="padding: 8px 14px;">Bezeichnung / Zweck</th>
+                                <th style="padding: 8px 14px;">Kategorie</th>
+                                <th style="padding: 8px 14px; text-align: right;">Betrag (Brutto)</th>
+                                <th style="padding: 8px 14px; text-align: center;">Vorsteuer</th>
+                                <th style="padding: 8px 14px; text-align: center;">Status</th>
+                                <th style="padding: 8px 14px; text-align: right;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+    }
+
+    const recTitle = document.getElementById('exp-recurring-section-title');
+    if (recTitle) recTitle.textContent = `Reguläre monatliche Fixkosten-Blöcke (${monthName} ${curYear})`;
+
+    const recContainer = document.getElementById('exp-recurring-container');
+    if (recContainer) {
+        const data = getExpensesData();
+        const activeRecurring = (data.recurring || []).filter(r => r.active !== false);
+
+        let recRows = '';
+        activeRecurring.forEach(r => {
+            recRows += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 10px 14px;">
+                        <strong style="color: #0f172a; font-size: 0.88rem;">${escapeHtml(r.title)}</strong>
+                        ${r.notes ? `<div style="font-size: 0.74rem; color: #64748b;">${escapeHtml(r.notes)}</div>` : ''}
+                    </td>
+                    <td style="padding: 10px 14px;">
+                        <span class="expenses-category-tag">${escapeHtml(r.category || 'Fixkosten')}</span>
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #0284c7; font-size: 0.92rem;">
+                        ${formatCurrency(r.amount)}
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center; font-size: 0.8rem; color: #64748b;">
+                        ${r.taxRate || 0}% MwSt
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center;">
+                        <span class="expenses-status-pill paid">Dauerhaft aktiv</span>
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
+                        <button type="button" class="neu-btn" onclick="openEditExpenseModal('${r.id}', false)" title="Fixkosten anpassen" style="padding: 5px 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            <span>Anpassen</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        recContainer.innerHTML = `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left; font-size: 0.75rem; color: #475569; text-transform: uppercase;">
+                            <th style="padding: 8px 14px;">Kostenblock</th>
+                            <th style="padding: 8px 14px;">Kategorie</th>
+                            <th style="padding: 8px 14px; text-align: right;">Monatlicher Betrag</th>
+                            <th style="padding: 8px 14px; text-align: center;">Vorsteuer</th>
+                            <th style="padding: 8px 14px; text-align: center;">Status</th>
+                            <th style="padding: 8px 14px; text-align: right;">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>${recRows}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // 4. Tab 2: Master-Vorlage
+    const masterContainer = document.getElementById('exp-master-recurring-container');
+    if (masterContainer) {
+        const data = getExpensesData();
+        let masterRows = '';
+        (data.recurring || []).forEach(r => {
+            const isActive = r.active !== false;
+            masterRows += `
+                <tr style="border-bottom: 1px solid #f1f5f9; ${isActive ? '' : 'opacity: 0.5;'}">
+                    <td style="padding: 10px 14px;">
+                        <strong style="color: #0f172a; font-size: 0.88rem;">${escapeHtml(r.title)}</strong>
+                        ${r.notes ? `<div style="font-size: 0.74rem; color: #64748b;">${escapeHtml(r.notes)}</div>` : ''}
+                    </td>
+                    <td style="padding: 10px 14px;">
+                        <span class="expenses-category-tag">${escapeHtml(r.category || 'Fixkosten')}</span>
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; font-weight: 800; color: #0f172a; font-size: 0.92rem;">
+                        ${formatCurrency(r.amount)}
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center; font-size: 0.8rem; color: #64748b;">
+                        ${r.taxRate || 0}% MwSt
+                    </td>
+                    <td style="padding: 10px 14px; text-align: center;">
+                        <button type="button" class="neu-btn" onclick="toggleRecurringExpenseActive('${r.id}')" style="padding: 4px 10px; font-size: 0.75rem; font-weight: 700; ${isActive ? 'background: #dcfce7; color: #15803d;' : 'background: #fee2e2; color: #b91c1c;'}">
+                            ${isActive ? '✓ Aktiv' : '✕ Pausiert'}
+                        </button>
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
+                        <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
+                            <button type="button" class="neu-btn" onclick="openEditExpenseModal('${r.id}', false)" title="Fixkosten bearbeiten" style="padding: 5px 10px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                <span>Bearbeiten</span>
+                            </button>
+                            <button type="button" class="neu-btn neu-btn-danger" onclick="deleteExpenseItem('${r.id}', false)" title="Fixkosten löschen" style="padding: 5px 8px; font-size: 0.8rem; display: inline-flex; align-items: center;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        masterContainer.innerHTML = `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left; font-size: 0.75rem; color: #475569; text-transform: uppercase;">
+                            <th style="padding: 8px 14px;">Kostenblock</th>
+                            <th style="padding: 8px 14px;">Kategorie</th>
+                            <th style="padding: 8px 14px; text-align: right;">Monatlicher Betrag</th>
+                            <th style="padding: 8px 14px; text-align: center;">Vorsteuer</th>
+                            <th style="padding: 8px 14px; text-align: center;">Status</th>
+                            <th style="padding: 8px 14px; text-align: right;">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>${masterRows}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // 5. Tab 3: 12-Monate Matrix
+    const matrixYearLabel = document.getElementById('exp-matrix-year-label');
+    if (matrixYearLabel) matrixYearLabel.textContent = String(curYear);
+
+    const matrixContainer = document.getElementById('exp-matrix-container');
+    if (matrixContainer) {
+        const categories = [
+            "Personalkosten",
+            "Miete & Betriebsstätte",
+            "Fahrzeuge & Fuhrpark",
+            "Werkzeuge & Maschinen",
+            "Material & Sonderausgaben",
+            "Versicherungen & Beiträge",
+            "Büro & Beratung",
+            "Marketing & Werbung",
+            "Sonstige Ausgaben"
+        ];
+
+        // Gather 12 months stats
+        const monthlyData = [];
+        for (let m = 0; m < 12; m++) {
+            const mKey = String(m + 1).padStart(2, '0');
+            monthlyData.push(getExpensesForMonth(curYear, mKey));
+        }
+
+        let headerMonthsHtml = '';
+        for (let m = 0; m < 12; m++) {
+            headerMonthsHtml += `<th style="text-align: right; padding: 8px 10px;">${GERMAN_MONTH_SHORT[m]}</th>`;
+        }
+
+        let catRowsHtml = '';
+        categories.forEach(cat => {
+            let rowAnnual = 0;
+            let cellsHtml = '';
+            for (let m = 0; m < 12; m++) {
+                const val = (monthlyData[m].categoryBreakdown && monthlyData[m].categoryBreakdown[cat]) || 0;
+                rowAnnual += val;
+                cellsHtml += `<td style="text-align: right; padding: 8px 10px; color: ${val > 0 ? '#0f172a' : '#cbd5e1'}; font-weight: ${val > 0 ? '600' : 'normal'};">${val > 0 ? formatCurrency(val) : '—'}</td>`;
+            }
+            catRowsHtml += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 8px 14px; font-weight: 700; color: #334155; white-space: nowrap;">${escapeHtml(cat)}</td>
+                    ${cellsHtml}
+                    <td style="text-align: right; padding: 8px 14px; font-weight: 800; color: #be123c; background: #fff1f2;">${formatCurrency(rowAnnual)}</td>
+                </tr>
+            `;
+        });
+
+        // Total Row
+        let totalCellsHtml = '';
+        let grandAnnual = 0;
+        for (let m = 0; m < 12; m++) {
+            const mTot = monthlyData[m].totalGross;
+            grandAnnual += mTot;
+            totalCellsHtml += `<td style="text-align: right; padding: 10px 10px; font-weight: 800; color: #0f172a;">${formatCurrency(mTot)}</td>`;
+        }
+
+        matrixContainer.innerHTML = `
+            <table class="expenses-matrix-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px 14px;">Kategorie</th>
+                        ${headerMonthsHtml}
+                        <th style="text-align: right; padding: 10px 14px; background: #fecdd3; color: #881337;">Jahressumme</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${catRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid #0f172a; background: #f8fafc;">
+                        <td style="padding: 10px 14px; font-weight: 800; color: #0f172a;">GESAMTAUSGABEN</td>
+                        ${totalCellsHtml}
+                        <td style="text-align: right; padding: 10px 14px; font-weight: 900; color: #e11d48; font-size: 0.95rem; background: #fecdd3;">${formatCurrency(grandAnnual)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        `;
+    }
+};
+
+// --- Modal & Form Actions ---
+
+window.openAddExpenseModal = function(mode) {
+    const modal = document.getElementById('expense-entry-modal');
+    const titleEl = document.getElementById('exp-modal-title');
+    const deleteBtn = document.getElementById('exp-delete-btn');
+    const form = document.getElementById('exp-entry-form');
+
+    if (form) form.reset();
+    document.getElementById('exp-edit-id').value = '';
+
+    const isDev = (mode === 'deviation');
+    const devRadio = document.getElementById('exp-mode-deviation');
+    const recRadio = document.getElementById('exp-mode-recurring');
+    if (devRadio && recRadio) {
+        devRadio.checked = isDev;
+        recRadio.checked = !isDev;
+    }
+    toggleExpenseModalType(isDev ? 'deviation' : 'recurring');
+
+    // Default target month & date
+    const curYear = window.expensesSelectedYear === 'all' ? 2026 : (parseInt(window.expensesSelectedYear, 10) || 2026);
+    const curMonth = window.expensesSelectedMonth || '03';
+    const monthSelect = document.getElementById('exp-target-month');
+    if (monthSelect) monthSelect.value = `${curYear}-${curMonth}`;
+
+    const dateInput = document.getElementById('exp-target-date');
+    if (dateInput) {
+        const today = new Date();
+        const dStr = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${dStr}.${curMonth}.${curYear}`;
+    }
+
+    if (titleEl) titleEl.textContent = isDev ? "Monats-Abweichung / Sonderausgabe erfassen" : "Regulären Fixkosten-Block erfassen";
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.openEditExpenseModal = function(id, isDeviation) {
+    const data = getExpensesData();
+    data.recurring = data.recurring || [];
+    data.deviations = data.deviations || [];
+
+    const idStr = String(id || '');
+    let isDev = (isDeviation === true || isDeviation === 'true' || isDeviation === 'dev');
+    let item = null;
+
+    if (isDev) {
+        item = data.deviations.find(d => String(d.id) === idStr);
+        if (!item) {
+            item = data.recurring.find(r => String(r.id) === idStr);
+            if (item) isDev = false;
+        }
+    } else {
+        item = data.recurring.find(r => String(r.id) === idStr);
+        if (!item) {
+            item = data.deviations.find(d => String(d.id) === idStr);
+            if (item) isDev = true;
+        }
+    }
+
+    if (!item) {
+        console.warn("Ausgabe konnte nicht gefunden werden für ID:", id);
+        showToast("Ausgabe konnte nicht gefunden werden.");
+        return;
+    }
+
+    const modal = document.getElementById('expense-entry-modal');
+    const form = document.getElementById('exp-entry-form');
+    if (form) form.reset();
+
+    const titleEl = document.getElementById('exp-modal-title');
+    const deleteBtn = document.getElementById('exp-delete-btn');
+    const editIdEl = document.getElementById('exp-edit-id');
+
+    if (editIdEl) {
+        editIdEl.value = (isDev ? 'dev:' : 'rec:') + String(item.id);
+    }
+
+    const devRadio = document.getElementById('exp-mode-deviation');
+    const recRadio = document.getElementById('exp-mode-recurring');
+    if (devRadio && recRadio) {
+        devRadio.checked = isDev;
+        recRadio.checked = !isDev;
+    }
+    toggleExpenseModalType(isDev ? 'deviation' : 'recurring');
+
+    const monthSelect = document.getElementById('exp-target-month');
+    if (monthSelect) {
+        if (item.monthKey) {
+            monthSelect.value = item.monthKey;
+        } else {
+            const curYear = window.expensesSelectedYear === 'all' ? 2026 : (parseInt(window.expensesSelectedYear, 10) || 2026);
+            const curMonth = window.expensesSelectedMonth || '09';
+            monthSelect.value = `${curYear}-${curMonth}`;
+        }
+    }
+
+    const dateInput = document.getElementById('exp-target-date');
+    if (dateInput) {
+        dateInput.value = item.date || '';
+    }
+
+    const titleInput = document.getElementById('exp-title-input');
+    if (titleInput) {
+        titleInput.value = item.title || '';
+    }
+
+    const catInput = document.getElementById('exp-category-input');
+    if (catInput) {
+        catInput.value = item.category || 'Sonstige Ausgaben';
+        if (item.category && catInput.value !== item.category) {
+            const opt = document.createElement('option');
+            opt.value = item.category;
+            opt.textContent = item.category;
+            opt.selected = true;
+            catInput.appendChild(opt);
+        }
+    }
+
+    const amtInput = document.getElementById('exp-amount-input');
+    if (amtInput) {
+        amtInput.value = (item.amount !== undefined && item.amount !== null) ? item.amount : '';
+    }
+
+    const taxInput = document.getElementById('exp-tax-rate-input');
+    if (taxInput) {
+        taxInput.value = String(item.taxRate !== undefined ? item.taxRate : 19);
+    }
+
+    const statusInput = document.getElementById('exp-status-input');
+    if (statusInput) {
+        statusInput.value = item.status || 'paid';
+    }
+
+    const notesInput = document.getElementById('exp-notes-input');
+    if (notesInput) {
+        notesInput.value = item.notes || '';
+    }
+
+    if (titleEl) {
+        titleEl.textContent = isDev ? "Monats-Abweichung bearbeiten" : "Fixkosten-Vorlage anpassen";
+    }
+    if (deleteBtn) {
+        deleteBtn.style.display = 'inline-flex';
+    }
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+};
+
+window.closeExpenseModal = function() {
+    const modal = document.getElementById('expense-entry-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+    const editIdEl = document.getElementById('exp-edit-id');
+    if (editIdEl) editIdEl.value = '';
+};
+
+window.toggleExpenseModalType = function(mode) {
+    const monthRow = document.getElementById('exp-month-select-row');
+    if (monthRow) {
+        monthRow.style.display = (mode === 'deviation') ? 'grid' : 'none';
+    }
+};
+
+window.handleSaveExpense = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const editIdStr = (document.getElementById('exp-edit-id')?.value || '').trim();
+    const title = (document.getElementById('exp-title-input')?.value || '').trim();
+    const amount = parseFloat(document.getElementById('exp-amount-input')?.value) || 0;
+    const category = document.getElementById('exp-category-input')?.value || 'Sonstige Ausgaben';
+    const taxRate = parseFloat(document.getElementById('exp-tax-rate-input')?.value) || 0;
+    const status = document.getElementById('exp-status-input')?.value || 'paid';
+    const notes = (document.getElementById('exp-notes-input')?.value || '').trim();
+
+    let isDeviation = true;
+    const devRadio = document.getElementById('exp-mode-deviation');
+    if (devRadio) isDeviation = devRadio.checked;
+
+    if (!title) {
+        showToast("Bitte eine Bezeichnung für die Ausgabe angeben.");
+        return;
+    }
+    if (amount <= 0) {
+        showToast("Bitte einen Betrag größer 0,00 € angeben.");
+        return;
+    }
+
+    const data = getExpensesData();
+    data.recurring = data.recurring || [];
+    data.deviations = data.deviations || [];
+
+    if (editIdStr) {
+        // UPDATE MODE: Vorhandenen Eintrag im State präzise überschreiben, keine Duplikate erzeugen!
+        const rawId = editIdStr.replace(/^(dev:|rec:)/, '');
+        const foundInDevIdx = data.deviations.findIndex(d => String(d.id) === String(rawId));
+        const foundInRecIdx = data.recurring.findIndex(r => String(r.id) === String(rawId));
+
+        if (isDeviation) {
+            const monthKey = document.getElementById('exp-target-month')?.value || '2026-09';
+            const date = (document.getElementById('exp-target-date')?.value || '').trim() || new Date().toLocaleDateString('de-DE');
+
+            if (foundInDevIdx !== -1) {
+                // Abweichung in place überschreiben
+                data.deviations[foundInDevIdx] = {
+                    ...data.deviations[foundInDevIdx],
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes,
+                    monthKey,
+                    date
+                };
+            } else if (foundInRecIdx !== -1) {
+                // War vorher Fixkosten, jetzt als Monats-Abweichung gespeichert
+                data.recurring.splice(foundInRecIdx, 1);
+                data.deviations.push({
+                    id: rawId.startsWith('dev-') ? rawId : ('dev-' + Date.now()),
+                    monthKey,
+                    date,
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes
+                });
+            } else {
+                // Fallback
+                data.deviations.push({
+                    id: 'dev-' + Date.now(),
+                    monthKey,
+                    date,
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes
+                });
+            }
+            showToast(`Monats-Abweichung „${title}“ aktualisiert.`);
+        } else {
+            // Fixkosten-Block
+            if (foundInRecIdx !== -1) {
+                // Bestehenden Fixkosten-Eintrag in place überschreiben
+                data.recurring[foundInRecIdx] = {
+                    ...data.recurring[foundInRecIdx],
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes,
+                    active: data.recurring[foundInRecIdx].active !== false
+                };
+            } else if (foundInDevIdx !== -1) {
+                // War vorher Abweichung, jetzt dauerhafte Fixkosten
+                data.deviations.splice(foundInDevIdx, 1);
+                data.recurring.push({
+                    id: rawId.startsWith('rec-') ? rawId : ('rec-' + Date.now()),
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes,
+                    active: true
+                });
+            } else {
+                // Fallback
+                data.recurring.push({
+                    id: 'rec-' + Date.now(),
+                    title,
+                    amount,
+                    category,
+                    taxRate,
+                    status,
+                    notes,
+                    active: true
+                });
+            }
+            showToast(`Fixkosten-Block „${title}“ aktualisiert.`);
+        }
+    } else {
+        // NEUER EINTRAG
+        if (isDeviation) {
+            const monthKey = document.getElementById('exp-target-month')?.value || '2026-09';
+            const date = (document.getElementById('exp-target-date')?.value || '').trim() || new Date().toLocaleDateString('de-DE');
+            const newDev = {
+                id: 'dev-' + Date.now(),
+                monthKey,
+                date,
+                title,
+                category,
+                amount,
+                taxRate,
+                status,
+                notes
+            };
+            data.deviations.push(newDev);
+            showToast(`Monats-Abweichung „${title}“ (${formatCurrency(amount)}) gespeichert.`);
+        } else {
+            const newRec = {
+                id: 'rec-' + Date.now(),
+                title,
+                category,
+                amount,
+                taxRate,
+                status,
+                notes,
+                active: true
+            };
+            data.recurring.push(newRec);
+            showToast(`Laufender Fixkostenblock „${title}“ (${formatCurrency(amount)}/Monat) angelegt.`);
+        }
+    }
+
+    const editIdEl = document.getElementById('exp-edit-id');
+    if (editIdEl) editIdEl.value = '';
+
+    saveExpensesData(data);
+    closeExpenseModal();
+};
+
+window.handleDeleteCurrentExpense = function() {
+    const editIdStr = (document.getElementById('exp-edit-id')?.value || '').trim();
+    if (!editIdStr) return;
+    const isDevItem = editIdStr.startsWith('dev:');
+    const rawId = editIdStr.replace(/^(dev:|rec:)/, '');
+    deleteExpenseItem(rawId, isDevItem);
+};
+
+window.deleteExpenseItem = function(id, isDeviation) {
+    const promptText = isDeviation 
+        ? "Möchten Sie diese Monats-Abweichung wirklich löschen?" 
+        : "Möchten Sie diesen wiederkehrenden Fixkostenblock wirklich dauerhaft löschen?";
+
+    showAppConfirm(
+        promptText,
+        function() {
+            const data = getExpensesData();
+            const idStr = String(id);
+            data.deviations = (data.deviations || []).filter(d => String(d.id) !== idStr);
+            data.recurring = (data.recurring || []).filter(r => String(r.id) !== idStr);
+            saveExpensesData(data);
+            closeExpenseModal();
+            showToast("Ausgabe gelöscht.");
+        },
+        {
+            title: "Ausgabe löschen?",
+            confirmText: "Löschen",
+            cancelText: "Abbrechen",
+            btnColor: "#dc2626"
+        }
+    );
+};
+
+window.toggleRecurringExpenseActive = function(id) {
+    const data = getExpensesData();
+    const item = (data.recurring || []).find(r => r.id === id);
+    if (!item) return;
+    item.active = (item.active === false) ? true : false;
+    saveExpensesData(data);
+    showToast(`Fixkostenblock „${item.title}“ ist nun ${item.active ? 'aktiv' : 'pausiert'}.`);
+};
+
+window.exportExpensesToCsv = function() {
+    const curYear = window.expensesSelectedYear === 'all' ? 2026 : (parseInt(window.expensesSelectedYear, 10) || 2026);
+    const data = getExpensesData();
+
+    const rows = [
+        ["Typ", "Monat / Belegdatum", "Bezeichnung / Kostenblock", "Kategorie", "Betrag Brutto", "Vorsteuersatz", "Status", "Notizen"]
+    ];
+
+    // Master Recurring
+    (data.recurring || []).forEach(r => {
+        rows.push([
+            "Dauerhafte Fixkosten",
+            "Jeden Monat",
+            `"${(r.title || '').replace(/"/g, '""')}"`,
+            `"${(r.category || '').replace(/"/g, '""')}"`,
+            (parseFloat(r.amount) || 0).toFixed(2),
+            `${r.taxRate || 0}%`,
+            r.active !== false ? "Aktiv" : "Pausiert",
+            `"${(r.notes || '').replace(/"/g, '""')}"`
+        ]);
+    });
+
+    // Deviations
+    (data.deviations || []).forEach(d => {
+        rows.push([
+            "Monats-Abweichung",
+            d.date || d.monthKey,
+            `"${(d.title || '').replace(/"/g, '""')}"`,
+            `"${(d.category || '').replace(/"/g, '""')}"`,
+            (parseFloat(d.amount) || 0).toFixed(2),
+            `${d.taxRate || 0}%`,
+            d.status === 'paid' ? "Bezahlt" : "Geplant",
+            `"${(d.notes || '').replace(/"/g, '""')}"`
+        ]);
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Palnau_Gartenbau_Betriebsausgaben_${curYear}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Ausgaben- und Kostenplan als CSV exportiert!");
+};
+
+
+
 

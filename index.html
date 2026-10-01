@@ -192,8 +192,8 @@
                 <span class="launcher-badge-neutral" id="launcher-clients-badge">Adressen</span>
             </div>
 
-            <!-- App 5: Quartale & USt-Journal -->
-            <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('quarters')" title="Quartalsweise Finanzübersicht & USt-Voranmeldung">
+            <!-- App 5: Finanz-Dashboard & Controlling -->
+            <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('quarters')" title="Monats-Finanzen, Power BI Dashboard, Monatsabrechnung & USt-Journal">
                 <div class="launcher-icon-squircle icon-finanzen">
                     <div class="squircle-gloss"></div>
                     <svg class="tile-svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -201,11 +201,26 @@
                         <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
                 </div>
-                <span class="launcher-app-title">Finanz-Quartale</span>
-                <span class="launcher-badge-neutral" id="launcher-quarters-badge">USt-Journal</span>
+                <span class="launcher-app-title">Finanz-Dashboard</span>
+                <span class="launcher-badge-new" id="launcher-quarters-badge">Power BI</span>
             </div>
 
-            <!-- App 6: Darlehen & Kredite -->
+            <!-- App 6: Monatliche Ausgaben & Kostenplan -->
+            <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('expenses')" title="Monatliche Betriebsausgaben, laufende Fixkosten & Monats-Abweichungen erfassen">
+                <div class="launcher-icon-squircle icon-ausgaben">
+                    <div class="squircle-gloss"></div>
+                    <svg class="tile-svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                        <line x1="2" y1="10" x2="22" y2="10"></line>
+                        <line x1="6" y1="15" x2="8" y2="15"></line>
+                        <line x1="12" y1="15" x2="18" y2="15"></line>
+                    </svg>
+                </div>
+                <span class="launcher-app-title">Monatliche Ausgaben</span>
+                <span class="launcher-badge-new" id="launcher-expenses-badge">Kostenplan</span>
+            </div>
+
+            <!-- App 7: Darlehen & Kredite -->
             <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('loans')" title="Mittelverwendung Darlehen: BGA, Betriebsmittel & Übernahme">
                 <div class="launcher-icon-squircle icon-darlehen">
                     <div class="squircle-gloss"></div>
@@ -220,7 +235,21 @@
                 <span class="launcher-badge-neutral" id="launcher-loans-badge">72.500 €</span>
             </div>
 
-            <!-- App 7: App sperren -->
+            <!-- App 8: Arbeitszeitkonto & Überstunden -->
+            <div class="launcher-app-tile" role="button" tabindex="0" onclick="switchAppView('worktime')" title="Arbeitszeitkonto & Überstunden-Verwaltung für Mitarbeiter">
+                <div class="launcher-icon-squircle icon-arbeitszeit">
+                    <div class="squircle-gloss"></div>
+                    <svg class="tile-svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                        <path d="M12 2v2"></path>
+                    </svg>
+                </div>
+                <span class="launcher-app-title">Arbeitszeitkonto</span>
+                <span class="launcher-badge-new" id="launcher-worktime-badge">Überstunden</span>
+            </div>
+
+            <!-- App 9: App sperren -->
             <div class="launcher-app-tile" role="button" tabindex="0" onclick="lockStudio()" title="Studio sperren und abmelden">
                 <div class="launcher-icon-squircle icon-sperren">
                     <div class="squircle-gloss"></div>
@@ -924,10 +953,10 @@
     </div>
 
     <!-- ====================================================================
-         APP 5: FINANZ-QUARTALE & UST-JOURNAL (DATEV/BWA TABLE)
+         APP 5: FINANZ-DASHBOARD, POWER BI CONTROLLING & MONATSRECHNUNG
          ==================================================================== -->
     <div id="app-quarters-view" class="neu-view-screen" style="display: none;">
-        <!-- Universal Neumorphic App Header -->
+        <!-- Universal Neumorphic App Header with Segmented Subtab Switcher -->
         <header class="neu-universal-header">
             <div class="neu-header-left">
                 <button type="button" class="neu-nav-btn neu-nav-home" onclick="switchAppView('launcher')" title="Zum Hauptmenü">
@@ -941,9 +970,30 @@
                 </button>
             </div>
 
+            <!-- Central Subtab Switcher (Power BI Dashboard / Monats-Rechnung / Quartale) -->
+            <div class="neu-header-center">
+                <div class="neu-segmented-control">
+                    <button type="button" class="neu-seg-btn active" id="btn-fin-tab-dashboard" onclick="switchFinSubTab('dashboard')">
+                        📊 Power BI Dashboard
+                    </button>
+                    <button type="button" class="neu-seg-btn" id="btn-fin-tab-monthly" onclick="switchFinSubTab('monthly')">
+                        📄 Monats-Rechnung & Belege
+                    </button>
+                    <button type="button" class="neu-seg-btn" id="btn-fin-tab-quarters" onclick="switchFinSubTab('quarters')">
+                        🏛️ USt-Quartale (DATEV)
+                    </button>
+                    <button type="button" class="neu-seg-btn" onclick="switchAppView('expenses')" title="Zur monatlichen Ausgaben- & Kostenverwaltung springen">
+                        📉 Ausgaben-Manager ➔
+                    </button>
+                </div>
+            </div>
+
             <div class="neu-header-right">
+                <button type="button" class="neu-btn" onclick="openMonthlyStatementModal()" title="Druckfertige Monatsrechnung (DIN A4 Abrechnungsbogen) öffnen">
+                    <span>📄 Monatsrechnung Drucken</span>
+                </button>
                 <button type="button" class="neu-btn neu-btn-primary" onclick="createNewInvoiceInGenerator()">
-                    <span>Neuer Beleg</span>
+                    <span>+ Neuer Beleg</span>
                 </button>
                 <button type="button" class="neu-btn neu-btn-lock" onclick="lockStudio()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -959,83 +1009,344 @@
             <!-- Screen Header Card -->
             <div class="neu-screen-header-card">
                 <div class="neu-screen-title-wrap">
-                    <h1>Finanz-Quartale & Umsatzsteuer-Journal</h1>
-                    <p>Fiskalisches Buchungsjournal nach UStG • Finanzamt Pforzheim (St.-Nr.: 41413-45017) • 19% Regelbesteuerung</p>
+                    <h1 id="fin-header-title">Finanz-Dashboard & Monats-Controlling</h1>
+                    <p id="fin-header-subtitle">Power BI Controlling • Visuelle Monatsrechnungen & BWA • Finanzamt Pforzheim (St.-Nr.: 41413-45017)</p>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button type="button" class="neu-btn" onclick="exportQuartersToCsv()" title="Quartalsbericht als CSV / Excel exportieren">
-                        CSV Export
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="neu-btn" onclick="openMonthlyStatementModal()" title="Druckfähige Monatsrechnung für Steuerberater öffnen">
+                        📄 Monatsrechnung Drucken
                     </button>
-                    <button type="button" class="neu-btn" onclick="window.print()" title="Druckfertigen USt-Bericht erstellen">
-                        Drucken
+                    <button type="button" class="neu-btn" onclick="exportFinancesToCsv()" title="Finanzdaten & Monatsjournal als CSV / Excel exportieren">
+                        📥 CSV Export
                     </button>
                 </div>
             </div>
 
-            <!-- Fiscal Controls Bar -->
-            <div class="neu-controls-bar">
-                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Wirtschaftsjahr:</span>
-                    <div class="neu-filter-segmented" id="quarters-year-pills">
-                        <button type="button" class="neu-filter-pill active" onclick="setQuartersYearFilter(2026, this)">2026 (Aktuell)</button>
-                        <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter(2025, this)">2025</button>
-                        <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter(2024, this)">2024</button>
-                        <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter('all', this)">Alle Jahre</button>
+            <!-- Fiscal Slicers & Filters Bar (Power BI Style) -->
+            <div class="neu-controls-bar fin-slicer-bar">
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; width: 100%;">
+                    <!-- Year Slicer -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="fin-slicer-label">Wirtschaftsjahr:</span>
+                        <div class="neu-filter-segmented" id="quarters-year-pills">
+                            <button type="button" class="neu-filter-pill active" onclick="setQuartersYearFilter(2026, this)">2026 (Aktuell)</button>
+                            <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter(2025, this)">2025</button>
+                            <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter(2024, this)">2024</button>
+                            <button type="button" class="neu-filter-pill" onclick="setQuartersYearFilter('all', this)">Alle Jahre</button>
+                        </div>
+                    </div>
+
+                    <div style="height: 22px; width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
+
+                    <!-- Month Slicer (Power BI Slicer) -->
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span class="fin-slicer-label">Monats-Slicer:</span>
+                        <div class="neu-filter-segmented fin-month-slicer" id="fin-month-pills">
+                            <button type="button" class="neu-filter-pill active" onclick="setFinMonthFilter('all', this)">Alle Monate</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('01', this)">Jan</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('02', this)">Feb</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('03', this)">Mär</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('04', this)">Apr</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('05', this)">Mai</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('06', this)">Jun</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('07', this)">Jul</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('08', this)">Aug</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('09', this)">Sep</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('10', this)">Okt</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('11', this)">Nov</button>
+                            <button type="button" class="neu-filter-pill" onclick="setFinMonthFilter('12', this)">Dez</button>
+                        </div>
+                    </div>
+
+                    <div class="fiscal-compliance-tag" style="margin-left: auto;">
+                        <span class="tax-bullet-dot"></span>
+                        <span id="fin-active-filter-badge">Filter: Alle Monate 2026 • 19% Regelbesteuerung</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SUBTAB 1: POWER BI DASHBOARD (VISUAL ANALYTICS & KPIS)
+                 ================================================================ -->
+            <div id="fin-tab-view-dashboard" class="fin-subtab-view" style="display: block;">
+                <!-- Power BI KPI Grid (6 dynamic metric cards including Expenses & Profit) -->
+                <div class="pbi-kpi-grid">
+                    <!-- KPI 1: Einnahmen / Umsatz Brutto -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top pbi-card-accent-cyan"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title" id="pbi-kpi-gross-title">Einnahmen (Umsatz)</span>
+                            <span class="pbi-trend-badge up" id="pbi-trend-gross">▲ Fakturiert</span>
+                        </div>
+                        <div class="pbi-kpi-value" id="pbi-kpi-gross-val" style="color: #0284c7;">0,00 €</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-gross-sub">Reingekommen (Brutto)</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" id="pbi-meter-gross" style="width: 100%; background: #0284c7;"></div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Monatliche Ausgaben (Fix + Abweichungen) -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top" style="background: #e11d48;"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title" id="pbi-kpi-expenses-title">Betriebsausgaben</span>
+                            <span class="pbi-trend-badge neutral" id="pbi-trend-expenses">Ausgaben</span>
+                        </div>
+                        <div class="pbi-kpi-value" style="color: #e11d48;" id="pbi-kpi-expenses-val">0,00 €</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-expenses-sub">Fixkosten + Monatsabweichungen</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" id="pbi-meter-expenses" style="width: 100%; background: #e11d48;"></div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Betriebsergebnis (Netto-Gewinn / Cashflow) -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top pbi-card-accent-emerald"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title">Betriebsergebnis (Saldo)</span>
+                            <span class="pbi-trend-badge up" id="pbi-trend-net">▲ Saldo</span>
+                        </div>
+                        <div class="pbi-kpi-value" style="color: #059669;" id="pbi-kpi-net-val">0,00 €</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-net-sub">Einnahmen minus Ausgaben</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" id="pbi-meter-net" style="width: 100%; background: #10b981;"></div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: 19% USt-Zahllast nach Vorsteuer -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top pbi-card-accent-orange"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title">USt-Zahllast (Finanzamt)</span>
+                            <span class="pbi-trend-badge neutral">Nach Vorsteuer</span>
+                        </div>
+                        <div class="pbi-kpi-value" style="color: #ea580c;" id="pbi-kpi-tax-val">0,00 €</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-tax-sub">MwSt Ausgang minus Vorsteuer Eingang</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" style="width: 100%; background: #f97316;"></div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 5: Kostendeckung & Zahlungsquote -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top pbi-card-accent-indigo"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title">Kostendeckung / Quote</span>
+                            <span class="pbi-trend-badge up" id="pbi-kpi-paid-rate">100%</span>
+                        </div>
+                        <div class="pbi-kpi-value" style="color: #4f46e5;" id="pbi-kpi-paid-val">0,00 €</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-paid-sub">Bezahlte Rechnungen</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" id="pbi-meter-paid" style="width: 100%; background: #6366f1;"></div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 6: Ausgangsbelege & Kunden -->
+                    <div class="pbi-kpi-card">
+                        <div class="pbi-card-accent-top pbi-card-accent-amber"></div>
+                        <div class="pbi-kpi-header">
+                            <span class="pbi-kpi-title">Belege & Kunden</span>
+                            <span class="pbi-trend-badge neutral" id="pbi-kpi-client-count">0 Kunden</span>
+                        </div>
+                        <div class="pbi-kpi-value" style="color: #d97706;" id="pbi-kpi-invoices-val">0 Belege</div>
+                        <div class="pbi-kpi-subtitle" id="pbi-kpi-invoices-sub">Im gewählten Zeitraum fakturiert</div>
+                        <div class="pbi-kpi-meter">
+                            <div class="pbi-kpi-meter-fill" style="width: 100%; background: #f59e0b;"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="fiscal-compliance-tag">
-                    <span class="tax-bullet-dot"></span>
-                    <span>Steuernummer: 41413-45017 • USt-Satz: 19% Regelbesteuerung</span>
+                <!-- Power BI Visual Analytics Grid -->
+                <div class="pbi-visuals-grid">
+                    <!-- Visual 1: 12-Month Interactive Column Chart (Einnahmen vs. Ausgaben) -->
+                    <div class="pbi-visual-card">
+                        <div class="pbi-visual-header">
+                            <div class="pbi-visual-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+                                <span>Monatsverlauf: Einnahmen vs. Ausgaben (Jahr <span id="pbi-chart-year-label">2026</span>)</span>
+                            </div>
+                            <span class="pbi-visual-badge">Power BI Vergleichs-Säulen</span>
+                        </div>
+                        <div class="pbi-chart-container" id="pbi-bar-chart-container">
+                            <!-- Populated dynamically by renderPowerBiDashboard() -->
+                        </div>
+                        <div class="pbi-chart-legend">
+                            <div class="pbi-legend-item">
+                                <div class="pbi-legend-color" style="background: #10b981;"></div>
+                                <span>Einnahmen (Reingekommen)</span>
+                            </div>
+                            <div class="pbi-legend-item">
+                                <div class="pbi-legend-color" style="background: #e11d48;"></div>
+                                <span>Ausgaben (Ausgegeben inkl. Abweichungen)</span>
+                            </div>
+                            <div class="pbi-legend-item" style="margin-left: auto; font-size: 0.72rem; color: #94a3b8;">
+                                <span>Klick auf Monat = Filter setzen</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visual 2: Zahlungs- & Cashflow-Status -->
+                    <div class="pbi-visual-card">
+                        <div class="pbi-visual-header">
+                            <div class="pbi-visual-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                                <span>Zahlungsstatus & Cashflow-Quote</span>
+                            </div>
+                            <span class="pbi-visual-badge" id="pbi-cashflow-period-badge">Gewählter Zeitraum</span>
+                        </div>
+
+                        <!-- Stacked Status Bar -->
+                        <div class="pbi-status-stack" id="pbi-status-stack-bar">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Status Rows -->
+                        <div class="pbi-status-list" id="pbi-status-list-container">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Visual 3: Top-Kunden Umsatz-Ranking -->
+                    <div class="pbi-visual-card">
+                        <div class="pbi-visual-header">
+                            <div class="pbi-visual-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                <span>Top-Kunden nach Umsatz</span>
+                            </div>
+                            <span class="pbi-visual-badge">Kunden-Ranking</span>
+                        </div>
+                        <div class="pbi-ranking-list" id="pbi-top-clients-container">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Visual 4: BWA Leistungsarten / Gewerke-Verteilung -->
+                    <div class="pbi-visual-card">
+                        <div class="pbi-visual-header">
+                            <div class="pbi-visual-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                <span>Leistungsbereiche & Gewerke (BWA)</span>
+                            </div>
+                            <span class="pbi-visual-badge">Auftragsstruktur</span>
+                        </div>
+                        <div class="pbi-category-grid" id="pbi-categories-container">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Visual 5: Monats-Ausgaben & Kostenblöcke (Verrechnung) -->
+                    <div class="pbi-visual-card" style="grid-column: 1 / -1;">
+                        <div class="pbi-visual-header">
+                            <div class="pbi-visual-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                                    <line x1="2" y1="10" x2="22" y2="10"></line>
+                                    <line x1="6" y1="15" x2="8" y2="15"></line>
+                                    <line x1="12" y1="15" x2="18" y2="15"></line>
+                                </svg>
+                                <span id="pbi-expenses-visual-title">Monatliche Betriebsausgaben & Verrechnung</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <span class="pbi-visual-badge" id="pbi-expenses-period-badge" style="background: #fff1f2; color: #be123c;">März 2026</span>
+                                <button type="button" class="neu-btn neu-btn-primary" onclick="switchAppView('expenses')" style="padding: 4px 10px; font-size: 0.74rem;">
+                                    Ausgaben-Manager öffnen ➔
+                                </button>
+                            </div>
+                        </div>
+                        <div id="pbi-expenses-content-container">
+                            <!-- Populated dynamically by renderPowerBiDashboard() -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Annual Summary KPI Box -->
-            <div class="neu-kpi-grid">
-                <div class="neu-kpi-box">
-                    <div class="neu-kpi-title" id="quarters-summary-year-label">Jahresumsatz Brutto</div>
-                    <div class="neu-kpi-num gross-glow" id="quarters-sum-gross">0,00 €</div>
-                    <div class="neu-kpi-subtitle">Gesamtvolumen inkl. MwSt.</div>
+            <!-- ================================================================
+                 SUBTAB 2: MONATS-RECHNUNG & BELEG-JOURNAL (INTERAKTIV)
+                 ================================================================ -->
+            <div id="fin-tab-view-monthly" class="fin-subtab-view" style="display: none;">
+                <!-- Monthly Summary Banner -->
+                <div class="fin-monthly-summary-card">
+                    <div class="fin-monthly-sum-item">
+                        <span class="fin-monthly-sum-label">Abrechnungsmonat</span>
+                        <span class="fin-monthly-sum-val" id="fin-monthly-label" style="color: #0284c7;">März 2026</span>
+                    </div>
+                    <div class="fin-monthly-sum-item">
+                        <span class="fin-monthly-sum-label">Nettoumsatz (Kz 81)</span>
+                        <span class="fin-monthly-sum-val" id="fin-monthly-sum-net" style="color: #059669;">0,00 €</span>
+                    </div>
+                    <div class="fin-monthly-sum-item">
+                        <span class="fin-monthly-sum-label">19% USt (Kz 83)</span>
+                        <span class="fin-monthly-sum-val" id="fin-monthly-sum-tax" style="color: #ea580c;">0,00 €</span>
+                    </div>
+                    <div class="fin-monthly-sum-item">
+                        <span class="fin-monthly-sum-label">Gesamtbetrag Brutto</span>
+                        <span class="fin-monthly-sum-val" id="fin-monthly-sum-gross" style="color: #0f172a;">0,00 €</span>
+                    </div>
+                    <div class="fin-monthly-sum-item">
+                        <span class="fin-monthly-sum-label">Beleg-Anzahl</span>
+                        <span class="fin-monthly-sum-val" id="fin-monthly-sum-count" style="color: #64748b;">0 Belege</span>
+                    </div>
+                    <div>
+                        <button type="button" class="neu-btn neu-btn-primary" onclick="openMonthlyStatementModal()" style="display: flex; align-items: center; gap: 6px;">
+                            <span>🖨️ DIN A4 Monatsrechnung Drucken</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="neu-kpi-box">
-                    <div class="neu-kpi-title">Bemessungsgrundlage (Netto)</div>
-                    <div class="neu-kpi-num" id="quarters-sum-net">0,00 €</div>
-                    <div class="neu-kpi-subtitle">Steuerpflichtige Umsätze (Kz 81)</div>
-                </div>
-                <div class="neu-kpi-box">
-                    <div class="neu-kpi-title">19% USt-Zahllast</div>
-                    <div class="neu-kpi-num" style="color: #ea580c;" id="quarters-sum-tax">0,00 €</div>
-                    <div class="neu-kpi-subtitle">Zahllast an Finanzamt (Kz 83)</div>
-                </div>
-                <div class="neu-kpi-box">
-                    <div class="neu-kpi-title">Ausgangsbelege Gesamt</div>
-                    <div class="neu-kpi-num" style="color: #0284c7;" id="quarters-sum-count">0</div>
-                    <div class="neu-kpi-subtitle">Rechnungen im Meldejahr</div>
+
+                <!-- Monthly Invoices Table -->
+                <div class="crm-table-container">
+                    <table class="crm-table fin-ledger-table" id="fin-monthly-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 14%;">Beleg-Nr.</th>
+                                <th style="width: 11%;">Datum</th>
+                                <th style="width: 22%;">Kunde & Anschrift</th>
+                                <th style="width: 18%;">Hauptleistung</th>
+                                <th style="width: 11%; text-align: right;">Netto</th>
+                                <th style="width: 10%; text-align: right;">19% MwSt.</th>
+                                <th style="width: 11%; text-align: right;">Brutto</th>
+                                <th style="width: 13%; text-align: center;">Status</th>
+                                <th style="width: 12%; text-align: center;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fin-monthly-table-body">
+                            <!-- Populated dynamically by renderMonthlyFinancesView() -->
+                        </tbody>
+                        <tfoot id="fin-monthly-table-footer">
+                            <!-- Populated dynamically -->
+                        </tfoot>
+                    </table>
                 </div>
             </div>
 
-            <!-- Financial Quarters Table Container -->
-            <div class="crm-table-container">
-                <table class="crm-table fin-ledger-table" id="crm-quarters-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 22%;">Meldezeitraum / Quartal</th>
-                            <th style="width: 17%;">Gesetzliche Frist USt-VA</th>
-                            <th style="width: 9%; text-align: center;">Belege</th>
-                            <th style="width: 14%; text-align: right;">Nettoumsatz (Kz 81)</th>
-                            <th style="width: 13%; text-align: right;">19% USt (Kz 83)</th>
-                            <th style="width: 14%; text-align: right;">Bruttoumsatz</th>
-                            <th style="width: 11%; text-align: center;">Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="crm-quarters-table-body">
-                        <!-- Populated by renderQuartersView() -->
-                    </tbody>
-                    <tfoot id="crm-quarters-table-footer">
-                        <!-- Populated by renderQuartersView() -->
-                    </tfoot>
-                </table>
+            <!-- ================================================================
+                 SUBTAB 3: UST-QUARTALE & VORANMELDUNG (DATEV / § 18 USTG)
+                 ================================================================ -->
+            <div id="fin-tab-view-quarters" class="fin-subtab-view" style="display: none;">
+                <!-- Financial Quarters Table Container -->
+                <div class="crm-table-container">
+                    <table class="crm-table fin-ledger-table" id="crm-quarters-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 22%;">Meldezeitraum / Quartal</th>
+                                <th style="width: 17%;">Gesetzliche Frist USt-VA</th>
+                                <th style="width: 9%; text-align: center;">Belege</th>
+                                <th style="width: 14%; text-align: right;">Nettoumsatz (Kz 81)</th>
+                                <th style="width: 13%; text-align: right;">19% USt (Kz 83)</th>
+                                <th style="width: 14%; text-align: right;">Bruttoumsatz</th>
+                                <th style="width: 11%; text-align: center;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crm-quarters-table-body">
+                            <!-- Populated by renderQuartersView() -->
+                        </tbody>
+                        <tfoot id="crm-quarters-table-footer">
+                            <!-- Populated by renderQuartersView() -->
+                        </tfoot>
+                    </table>
+                </div>
             </div>
+
         </div>
     </div>
 
@@ -1178,6 +1489,459 @@
                         <!-- Populated by renderLoansView() -->
                     </tfoot>
                 </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ARBEITSZEITKONTO & ÜBERSTUNDEN-ERFASSER (AZK SCREEN)
+         ==================================================================== -->
+    <div id="app-worktime-view" class="neu-view-screen" style="display: none;">
+        <!-- Universal Neumorphic App Header -->
+        <header class="neu-universal-header">
+            <div class="neu-header-left">
+                <button type="button" class="neu-nav-btn neu-nav-home" onclick="switchAppView('launcher')" title="Zum Hauptmenü">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Hauptmenü</span>
+                </button>
+            </div>
+
+            <div class="neu-header-center" style="display: flex; align-items: center; gap: 8px;">
+                <div class="neu-segmented-switch" style="box-shadow: none; background: #e2e8f0; padding: 2px;">
+                    <button type="button" class="neu-switch-btn active" id="btn-wt-tab-cards" onclick="switchWorktimeSubTab('cards')">
+                        Mitarbeiter-Konten
+                    </button>
+                    <button type="button" class="neu-switch-btn" id="btn-wt-tab-ledger" onclick="switchWorktimeSubTab('ledger')">
+                        Buchungsjournal
+                    </button>
+                </div>
+            </div>
+
+            <div class="neu-header-right">
+                <button type="button" class="neu-btn" onclick="openAddEmployeeModal()" title="Neuen Mitarbeiter anlegen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="8.5" cy="7" r="4"></circle>
+                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                    <span>+ Neuer Mitarbeiter</span>
+                </button>
+                <button type="button" class="neu-btn neu-btn-primary" onclick="openAddWorktimeEntryModal()" title="Überstunden oder Abbau erfassen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>+ Stunden buchen</span>
+                </button>
+                <div class="neu-action-menu-wrap">
+                    <button type="button" class="neu-action-menu-trigger" onclick="toggleActionMenu(event, 'wt-header-more-menu')" title="Weitere Optionen">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="1.5"></circle>
+                            <circle cx="12" cy="5" r="1.5"></circle>
+                            <circle cx="12" cy="19" r="1.5"></circle>
+                        </svg>
+                    </button>
+                    <div class="neu-action-menu-dropdown" id="wt-header-more-menu">
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); exportWorktimeToCsv();">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>CSV Export</span>
+                        </button>
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); switchWorktimeSubTab('ledger');">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                            <span>Buchungsjournal öffnen</span>
+                        </button>
+                        <div class="neu-menu-divider"></div>
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); lockStudio();">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span>Studio sperren</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="neu-view-body">
+            <!-- Screen Header Card -->
+            <div class="neu-screen-header-card" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div class="neu-screen-title-wrap">
+                    <h1>Arbeitszeitkonto & Überstunden • Palnau Gartenbau GmbH</h1>
+                    <p>Monatliche Zeiterfassung, Überstunden-Aufbau (Mehrarbeit) und Freizeitausgleich (Abbau) für alle Mitarbeiter</p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="neu-btn" onclick="openAddEmployeeModal()" title="Neuen Mitarbeiter anlegen" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 9px 16px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <span>+ Neuer Mitarbeiter</span>
+                    </button>
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="openAddWorktimeEntryModal()" title="Überstunden oder Zeitausgleich buchen" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 9px 16px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>+ Stunden buchen</span>
+                    </button>
+                    <div class="neu-action-menu-wrap">
+                        <button type="button" class="neu-action-menu-trigger" onclick="toggleActionMenu(event, 'wt-screen-more-menu')" title="Weitere Optionen" style="width: 38px; height: 38px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="1.5"></circle>
+                                <circle cx="12" cy="5" r="1.5"></circle>
+                                <circle cx="12" cy="19" r="1.5"></circle>
+                            </svg>
+                        </button>
+                        <div class="neu-action-menu-dropdown" id="wt-screen-more-menu">
+                            <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); exportWorktimeToCsv();">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span>CSV Exportieren</span>
+                            </button>
+                            <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); switchWorktimeSubTab('ledger');">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                <span>Buchungsjournal anzeigen</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Ribbon -->
+            <div class="worktime-kpi-grid">
+                <div class="worktime-kpi-card">
+                    <span class="worktime-kpi-label">Gesamtsaldo Überstunden</span>
+                    <span class="worktime-kpi-value" id="wt-kpi-total-balance">+0,0 Std.</span>
+                    <span class="worktime-kpi-sub" id="wt-kpi-balance-sub">Über alle Mitarbeiter</span>
+                </div>
+                <div class="worktime-kpi-card">
+                    <span class="worktime-kpi-label">Mitarbeiter angelegt</span>
+                    <span class="worktime-kpi-value" id="wt-kpi-emp-count" style="color: #0284c7;">0</span>
+                    <span class="worktime-kpi-sub">Garten- & Landschaftsbau</span>
+                </div>
+                <div class="worktime-kpi-card">
+                    <span class="worktime-kpi-label">Aufbau (Mehrarbeit)</span>
+                    <span class="worktime-kpi-value" id="wt-kpi-total-aufbau" style="color: #059669;">+0,0 Std.</span>
+                    <span class="worktime-kpi-sub" id="wt-kpi-aufbau-sub">Geleistete Überstunden</span>
+                </div>
+                <div class="worktime-kpi-card">
+                    <span class="worktime-kpi-label">Abbau (Freizeitausgleich)</span>
+                    <span class="worktime-kpi-value" id="wt-kpi-total-abbau" style="color: #2563eb;">-0,0 Std.</span>
+                    <span class="worktime-kpi-sub" id="wt-kpi-abbau-sub">Freizeitausgleich / genommen</span>
+                </div>
+            </div>
+
+            <!-- Controls Toolbar (Search & Filter) -->
+            <div class="worktime-controls-bar">
+                <div class="worktime-filter-group">
+                    <span style="font-size: 0.76rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Monat:</span>
+                    <div class="neu-pill-group" id="wt-month-pills" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                        <button type="button" class="neu-pill-btn active" onclick="setWorktimeMonthFilter('all')">Alle Monate</button>
+                        <button type="button" class="neu-pill-btn" onclick="setWorktimeMonthFilter('2026-03')">März 2026</button>
+                        <button type="button" class="neu-pill-btn" onclick="setWorktimeMonthFilter('2026-02')">Februar 2026</button>
+                        <button type="button" class="neu-pill-btn" onclick="setWorktimeMonthFilter('2026-01')">Januar 2026</button>
+                    </div>
+                </div>
+
+                <div class="worktime-filter-group" style="margin-left: auto;">
+                    <div class="neu-search-box" style="position: relative; width: 260px;">
+                        <input type="text" id="wt-search-input" class="neu-input" placeholder="Mitarbeiter / Grund suchen..." oninput="handleWorktimeSearch(this.value)" style="width: 100%; font-size: 0.82rem; padding: 7px 28px 7px 12px;">
+                        <button type="button" id="wt-search-clear" onclick="clearWorktimeSearch()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 11px; color: #94a3b8; cursor: pointer; display: none;">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 1: Cards View (Mitarbeiter-Konten) -->
+            <div id="wt-view-cards" style="display: block;">
+                <div id="wt-employee-grid" class="worktime-employee-grid">
+                    <!-- Populated by renderWorktimeView() -->
+                </div>
+            </div>
+
+            <!-- Tab 2: Ledger Table View (Buchungsjournal) -->
+            <div id="wt-view-ledger" style="display: none; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                    <strong style="color: #0f172a; font-size: 0.95rem;">Lückenloses Überstunden-Buchungsjournal</strong>
+                    <span id="wt-ledger-count" style="font-size: 0.8rem; color: #64748b; font-weight: 600;">0 Buchungen</span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="neu-data-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 10px 14px; text-align: left;">Datum</th>
+                                <th style="padding: 10px 14px; text-align: left;">Mitarbeiter</th>
+                                <th style="padding: 10px 14px; text-align: left;">Buchungs-Art</th>
+                                <th style="padding: 10px 14px; text-align: right;">Stunden</th>
+                                <th style="padding: 10px 14px; text-align: left;">Grund / Baustelle / Bemerkung</th>
+                                <th style="padding: 10px 14px; text-align: center;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wt-ledger-tbody">
+                            <!-- Populated by renderWorktimeView() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         APP: MONATLICHE AUSGABEN, FIXKOSTEN & SONDERABWEICHUNGEN (EXPENSES)
+         ==================================================================== -->
+    <div id="app-expenses-view" class="neu-view-screen" style="display: none;">
+        <!-- Universal Neumorphic App Header -->
+        <header class="neu-universal-header">
+            <div class="neu-header-left">
+                <button type="button" class="neu-nav-btn neu-nav-home" onclick="switchAppView('launcher')" title="Zum Hauptmenü">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Hauptmenü</span>
+                </button>
+            </div>
+
+            <!-- Central Subtab Switcher -->
+            <div class="neu-header-center">
+                <div class="neu-segmented-switch" style="box-shadow: none; background: #e2e8f0; padding: 2px;">
+                    <button type="button" class="neu-switch-btn active" id="btn-exp-tab-month" onclick="switchExpensesSubTab('month')">
+                        📅 Monats-Ausgaben & Abweichungen
+                    </button>
+                    <button type="button" class="neu-switch-btn" id="btn-exp-tab-recurring" onclick="switchExpensesSubTab('recurring')">
+                        🔄 Dauerhafte Fixkosten-Vorlage
+                    </button>
+                    <button type="button" class="neu-switch-btn" id="btn-exp-tab-matrix" onclick="switchExpensesSubTab('matrix')">
+                        📊 12-Monate Matrix
+                    </button>
+                </div>
+            </div>
+
+            <div class="neu-header-right">
+                <button type="button" class="neu-btn" onclick="openAddExpenseModal('recurring')" title="Dauerhaften Fixkosten-Block anlegen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                        <line x1="6" y1="12" x2="18" y2="12"></line>
+                        <line x1="12" y1="6" x2="12" y2="18"></line>
+                    </svg>
+                    <span>+ Fixkosten anlegen</span>
+                </button>
+                <button type="button" class="neu-btn neu-btn-primary" onclick="openAddExpenseModal('deviation')" title="Sonderausgabe oder Monatsabweichung erfassen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>+ Ausgabe erfassen</span>
+                </button>
+                <div class="neu-action-menu-wrap">
+                    <button type="button" class="neu-action-menu-trigger" onclick="toggleActionMenu(event, 'exp-header-more-menu')" title="Weitere Optionen">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="1.5"></circle>
+                            <circle cx="12" cy="5" r="1.5"></circle>
+                            <circle cx="12" cy="19" r="1.5"></circle>
+                        </svg>
+                    </button>
+                    <div class="neu-action-menu-dropdown" id="exp-header-more-menu">
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); switchAppView('quarters');">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+                            <span>Zum Finanz-Dashboard</span>
+                        </button>
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); exportExpensesToCsv();">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>CSV Export</span>
+                        </button>
+                        <div class="neu-menu-divider"></div>
+                        <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); lockStudio();">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span>Studio sperren</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="neu-view-body">
+            <!-- Screen Header Card -->
+            <div class="neu-screen-header-card" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div class="neu-screen-title-wrap">
+                    <h1>Monatliche Betriebsausgaben & Kostenplan • Palnau Gartenbau GmbH</h1>
+                    <p>Laufende Monatsfixkosten, monatsspezifische Sonderausgaben & Abweichungen für das Finanzcontrolling</p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="neu-btn" onclick="openAddExpenseModal('recurring')" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 9px 16px;" title="Dauerhaften Fixkosten-Block anlegen">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                            <line x1="6" y1="12" x2="18" y2="12"></line>
+                            <line x1="12" y1="6" x2="12" y2="18"></line>
+                        </svg>
+                        <span>+ Fixkosten anlegen</span>
+                    </button>
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="openAddExpenseModal('deviation')" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 9px 16px;" title="Sonderausgabe oder Monatsabweichung erfassen">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>+ Ausgabe erfassen</span>
+                    </button>
+                    <div class="neu-action-menu-wrap">
+                        <button type="button" class="neu-action-menu-trigger" onclick="toggleActionMenu(event, 'exp-screen-more-menu')" title="Weitere Optionen" style="width: 38px; height: 38px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="1.5"></circle>
+                                <circle cx="12" cy="5" r="1.5"></circle>
+                                <circle cx="12" cy="19" r="1.5"></circle>
+                            </svg>
+                        </button>
+                        <div class="neu-action-menu-dropdown" id="exp-screen-more-menu">
+                            <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); switchAppView('quarters');">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+                                <span>Zum Finanz-Dashboard</span>
+                            </button>
+                            <button type="button" class="neu-menu-item" onclick="closeAllActionMenus(); exportExpensesToCsv();">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span>CSV Exportieren</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Month & Year Slicer Bar -->
+            <div class="worktime-controls-bar" style="margin-bottom: 20px;">
+                <div class="worktime-filter-group" style="align-items: center;">
+                    <span style="font-size: 0.76rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Abrechnungsmonat:</span>
+                    <div class="neu-pill-group" id="exp-month-pills" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                        <!-- Generated dynamically by JS -->
+                    </div>
+                </div>
+                <div class="worktime-filter-group" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.76rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Jahr:</span>
+                    <div class="neu-filter-segmented" id="exp-year-pills">
+                        <button type="button" class="neu-filter-pill active" onclick="setExpensesYearFilter(2026, this)">2026</button>
+                        <button type="button" class="neu-filter-pill" onclick="setExpensesYearFilter(2025, this)">2025</button>
+                        <button type="button" class="neu-filter-pill" onclick="setExpensesYearFilter('all', this)">Alle Jahre</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Ribbon -->
+            <div class="expenses-kpi-grid">
+                <div class="expenses-kpi-card">
+                    <div class="expenses-kpi-accent" style="background: #e11d48;"></div>
+                    <span class="expenses-kpi-label">
+                        <span>Gesamtausgaben</span>
+                        <span id="exp-kpi-period-badge" style="font-size: 0.7rem; color: #e11d48; font-weight: 700;">März 2026</span>
+                    </span>
+                    <span class="expenses-kpi-value" id="exp-kpi-total-val" style="color: #be123c;">0,00 €</span>
+                    <span class="expenses-kpi-sub" id="exp-kpi-total-sub">Fixkosten + Sonderkosten</span>
+                </div>
+
+                <div class="expenses-kpi-card">
+                    <div class="expenses-kpi-accent" style="background: #0284c7;"></div>
+                    <span class="expenses-kpi-label">
+                        <span>Reguläre Fixkosten</span>
+                        <span style="font-size: 0.7rem; color: #0284c7; font-weight: 700;">Basis</span>
+                    </span>
+                    <span class="expenses-kpi-value" id="exp-kpi-recurring-val" style="color: #0369a1;">0,00 €</span>
+                    <span class="expenses-kpi-sub" id="exp-kpi-recurring-sub">Monatliche laufende Kosten</span>
+                </div>
+
+                <div class="expenses-kpi-card">
+                    <div class="expenses-kpi-accent" style="background: #f59e0b;"></div>
+                    <span class="expenses-kpi-label">
+                        <span>Monats-Abweichungen</span>
+                        <span style="font-size: 0.7rem; color: #d97706; font-weight: 700;">Sonderkosten</span>
+                    </span>
+                    <span class="expenses-kpi-value" id="exp-kpi-deviations-val" style="color: #b45309;">0,00 €</span>
+                    <span class="expenses-kpi-sub" id="exp-kpi-deviations-sub">Nur in diesem Monat aktiv</span>
+                </div>
+
+                <div class="expenses-kpi-card">
+                    <div class="expenses-kpi-accent" style="background: #10b981;"></div>
+                    <span class="expenses-kpi-label">
+                        <span>Jahressumme Ausgaben</span>
+                        <span style="font-size: 0.7rem; color: #059669; font-weight: 700;">2026</span>
+                    </span>
+                    <span class="expenses-kpi-value" id="exp-kpi-annual-val" style="color: #047857;">0,00 €</span>
+                    <span class="expenses-kpi-sub">Gesamtkosten 12 Monate</span>
+                </div>
+            </div>
+
+            <!-- Tab 1: Monats-Ausgaben & Abweichungen -->
+            <div id="exp-view-month" style="display: block;">
+                <!-- Section 1: Monatsspezifische Abweichungen & Sonderkosten -->
+                <div class="expenses-section-card">
+                    <div class="expenses-section-header">
+                        <div class="expenses-section-title">
+                            <span class="expenses-badge-deviation">Monats-Abweichungen</span>
+                            <span id="exp-deviations-section-title">Sonderausgaben für März 2026</span>
+                        </div>
+                        <button type="button" class="neu-btn neu-btn-primary" onclick="openAddExpenseModal('deviation')" style="font-size: 0.78rem; padding: 6px 12px;">
+                            + Neue Monats-Abweichung einfügen
+                        </button>
+                    </div>
+                    <div id="exp-deviations-container">
+                        <!-- Populated by renderExpensesView() -->
+                    </div>
+                </div>
+
+                <!-- Section 2: Reguläre monatliche Fixkosten -->
+                <div class="expenses-section-card">
+                    <div class="expenses-section-header">
+                        <div class="expenses-section-title">
+                            <span class="expenses-badge-recurring">Laufende Fixkosten</span>
+                            <span id="exp-recurring-section-title">Reguläre monatliche Kostenblöcke (März 2026)</span>
+                        </div>
+                        <span style="font-size: 0.78rem; color: #64748b;">Laufen jeden Monat automatisch mit</span>
+                    </div>
+                    <div id="exp-recurring-container">
+                        <!-- Populated by renderExpensesView() -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Dauerhafte Fixkosten-Vorlage -->
+            <div id="exp-view-recurring" style="display: none;">
+                <div class="expenses-section-card">
+                    <div class="expenses-section-header">
+                        <div class="expenses-section-title">
+                            <span>🔄 Master-Vorlage: Dauerhafte monatliche Betriebsausgaben</span>
+                        </div>
+                        <button type="button" class="neu-btn neu-btn-primary" onclick="openAddExpenseModal('recurring')" style="font-size: 0.78rem; padding: 6px 12px;">
+                            + Neuen Fixkosten-Block anlegen
+                        </button>
+                    </div>
+                    <div style="padding: 12px 20px; background: #fffbeb; border-bottom: 1px solid #fef3c7; font-size: 0.8rem; color: #92400e;">
+                        💡 <strong>Hinweis:</strong> Diese Kostenblöcke bilden das Basis-Budget für jeden Monat (z. B. Miete, Standardgehälter, Leasing). Weicht ein Monat davon ab, erfassen Sie dies einfach im Reiter <em>„Monats-Ausgaben & Abweichungen“</em>.
+                    </div>
+                    <div id="exp-master-recurring-container">
+                        <!-- Populated by renderExpensesView() -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: 12-Monate Matrix -->
+            <div id="exp-view-matrix" style="display: none;">
+                <div class="expenses-section-card">
+                    <div class="expenses-section-header">
+                        <div class="expenses-section-title">
+                            <span>📊 12-Monats-Kostenmatrix nach Kategorien (Jahr <span id="exp-matrix-year-label">2026</span>)</span>
+                        </div>
+                        <button type="button" class="neu-btn" onclick="exportExpensesToCsv()" style="font-size: 0.78rem; padding: 6px 12px;">
+                            📥 Matrix als CSV exportieren
+                        </button>
+                    </div>
+                    <div style="overflow-x: auto;" id="exp-matrix-container">
+                        <!-- Populated by renderExpensesView() -->
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -1748,7 +2512,7 @@
                 <div>
                     <label style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 800; color: #059669; margin-bottom: 4px; text-transform: uppercase;">
                         <span>2. Betriebsmittel</span>
-                        <span style="color: var(--text-muted); font-weight: normal;">Standard: 27.000 €</span>
+                        <span style="color: var(--text-muted); font-weight: normal;">Standard: 34.500 €</span>
                     </label>
                     <input type="number" step="100" min="0" id="budget-betriebsmittel-input" class="neu-input" required style="width: 100%; font-size: 1.05rem; font-weight: 800;">
                 </div>
@@ -1756,7 +2520,7 @@
                 <div>
                     <label style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 800; color: #7c3aed; margin-bottom: 4px; text-transform: uppercase;">
                         <span>3. Auf-/Übernahme (Firmenübernahme)</span>
-                        <span style="color: var(--text-muted); font-weight: normal;">Standard: 37.500 €</span>
+                        <span style="color: var(--text-muted); font-weight: normal;">Standard: 30.000 €</span>
                     </label>
                     <input type="number" step="100" min="0" id="budget-uebernahme-input" class="neu-input" required style="width: 100%; font-size: 1.05rem; font-weight: 800;">
                 </div>
@@ -1771,6 +2535,354 @@
                     <button type="submit" class="neu-btn neu-btn-primary">Budgets dauerhaft sichern</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ARBEITSZEITKONTO: MITARBEITER ANLEGEN / BEARBEITEN MODAL
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="worktime-employee-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeEmployeeModal()">
+        <div class="catalog-modal-window" style="max-width: 520px;">
+            <div class="modal-header-bar">
+                <h2 id="wt-emp-modal-title">Mitarbeiter anlegen</h2>
+                <button type="button" class="neu-btn" onclick="closeEmployeeModal()" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <form id="wt-employee-form" onsubmit="handleSaveEmployee(event)" style="display: flex; flex-direction: column; gap: 14px; padding-top: 8px;">
+                <input type="hidden" id="wt-emp-edit-id" value="">
+
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Vollständiger Name des Mitarbeiters *
+                    </label>
+                    <input type="text" id="wt-emp-name" class="neu-input" placeholder="z. B. Florian Keller oder Marius Weber" required style="width: 100%; font-size: 1rem; font-weight: 700;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Position / Rolle
+                        </label>
+                        <input type="text" id="wt-emp-role" class="neu-input" placeholder="z. B. Vorarbeiter GalaBau" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Wochenarbeitszeit (Std.)
+                        </label>
+                        <input type="number" step="0.5" min="1" id="wt-emp-weekly-hours" class="neu-input" value="40" style="width: 100%; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Start-Überstundensaldo (Std.)
+                        </label>
+                        <input type="number" step="0.25" id="wt-emp-initial-balance" class="neu-input" value="0.0" placeholder="0.0" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Status
+                        </label>
+                        <select id="wt-emp-status" class="neu-inset-select" style="width: 100%; padding: 8px 12px; font-size: 0.88rem;">
+                            <option value="active">Aktiv</option>
+                            <option value="inactive">Inaktiv</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+                    <button type="button" class="neu-btn neu-btn-danger" id="wt-emp-delete-btn" onclick="handleDeleteCurrentEmployee()" style="display: none; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>Mitarbeiter löschen</span>
+                    </button>
+                    <div style="display: flex; gap: 10px; margin-left: auto;">
+                        <button type="button" class="neu-btn" onclick="closeEmployeeModal()">Abbrechen</button>
+                        <button type="submit" class="neu-btn neu-btn-primary">Mitarbeiter speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ARBEITSZEITKONTO: ÜBERSTUNDEN BUCHEN (AUFBAU / ABBAU) MODAL
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="worktime-entry-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeWorktimeEntryModal()">
+        <div class="catalog-modal-window" style="max-width: 540px;">
+            <div class="modal-header-bar">
+                <h2 id="wt-entry-modal-title">Überstunden buchen</h2>
+                <button type="button" class="neu-btn" onclick="closeWorktimeEntryModal()" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <form id="wt-entry-form" onsubmit="handleSaveWorktimeEntry(event)" style="display: flex; flex-direction: column; gap: 14px; padding-top: 8px;">
+                <input type="hidden" id="wt-entry-edit-id" value="">
+
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Mitarbeiter auswählen *
+                    </label>
+                    <select id="wt-entry-employee-id" class="neu-inset-select" style="width: 100%; padding: 10px 14px; font-size: 0.92rem; font-weight: 700;" required>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Buchungs-Art *
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 2px solid #a7f3d0; background: #ecfdf5; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="wt-entry-type-radio" value="aufbau" checked onchange="updateWorktimeTypeVisual('aufbau')">
+                            <div>
+                                <strong style="display: block; color: #047857; font-size: 0.88rem;">+ Aufbau</strong>
+                                <span style="font-size: 0.72rem; color: #065f46;">Mehrarbeit geleistet</span>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 2px solid #cbd5e1; background: #f8fafc; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="wt-entry-type-radio" value="abbau" onchange="updateWorktimeTypeVisual('abbau')">
+                            <div>
+                                <strong style="display: block; color: #1d4ed8; font-size: 0.88rem;">- Abbau</strong>
+                                <span style="font-size: 0.72rem; color: #1e40af;">Freizeitausgleich / frei</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Stunden-Anzahl *
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="number" step="0.25" min="0.25" max="40" id="wt-entry-hours" class="neu-input" placeholder="z. B. 4.0" required style="width: 100%; font-weight: 800; font-size: 1.15rem;">
+                            <span style="font-weight: 700; color: #475569; font-size: 0.9rem;">Std.</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Datum *
+                        </label>
+                        <input type="text" id="wt-entry-date" class="neu-input" placeholder="TT.MM.JJJJ" required style="width: 100%; font-weight: 600;">
+                    </div>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Grund / Baustelle / Tätigkeit *
+                    </label>
+                    <input type="text" id="wt-entry-purpose" class="neu-input" placeholder="z. B. Samstag Pflasterarbeiten Keltern, Notdienst, früher Feierabend..." required style="width: 100%;">
+                </div>
+
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    <button type="button" class="convert-date-quick-btn" onclick="setWorktimeQuickPurpose('Samstagseinsatz Baustelle')">+ Samstag Baustelle</button>
+                    <button type="button" class="convert-date-quick-btn" onclick="setWorktimeQuickPurpose('Mehrarbeit Fertigstellung Pflasterung')">+ Pflasterarbeiten</button>
+                    <button type="button" class="convert-date-quick-btn" onclick="setWorktimeQuickPurpose('Freizeitausgleich halber Tag')">- 0,5 Tag frei</button>
+                    <button type="button" class="convert-date-quick-btn" onclick="setWorktimeQuickPurpose('Freizeitausgleich ganzer Tag')">- 1 Tag frei</button>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+                    <button type="button" class="neu-btn" id="wt-entry-delete-btn" onclick="handleDeleteCurrentWorktimeEntry()" style="color: #dc2626; display: none;">
+                        Buchung löschen
+                    </button>
+                    <div style="display: flex; gap: 10px; margin-left: auto;">
+                        <button type="button" class="neu-btn" onclick="closeWorktimeEntryModal()">Abbrechen</button>
+                        <button type="submit" class="neu-btn neu-btn-primary">Buchung speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         MODAL: BETRIEBSAUSGABE / MONATSABWEICHUNG / FIXKOSTEN ERFASSEN
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="expense-entry-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeExpenseModal()">
+        <div class="catalog-modal-window" style="max-width: 550px;">
+            <div class="modal-header-bar">
+                <h2 id="exp-modal-title">Ausgabe erfassen</h2>
+                <button type="button" class="neu-btn" onclick="closeExpenseModal()" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <form id="exp-entry-form" onsubmit="handleSaveExpense(event)" style="display: flex; flex-direction: column; gap: 14px; padding-top: 8px;">
+                <input type="hidden" id="exp-edit-id" value="">
+
+                <!-- Cost Type Switcher (Abweichung vs. Fixkosten) -->
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">
+                        Ausgaben-Typ *
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;">
+                            <input type="radio" name="exp-type-mode" id="exp-mode-deviation" value="deviation" checked onchange="toggleExpenseModalType(this.value)">
+                            <div>
+                                <strong style="display: block; font-size: 0.84rem; color: #be123c;">Monats-Abweichung</strong>
+                                <span style="font-size: 0.72rem; color: #64748b;">Sonderkosten für bestimmten Monat</span>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;">
+                            <input type="radio" name="exp-type-mode" id="exp-mode-recurring" value="recurring" onchange="toggleExpenseModalType(this.value)">
+                            <div>
+                                <strong style="display: block; font-size: 0.84rem; color: #0369a1;">Dauerhafte Fixkosten</strong>
+                                <span style="font-size: 0.72rem; color: #64748b;">Laufend jeden Monat automatisch</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Month Selector (only for deviation) -->
+                <div id="exp-month-select-row" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Ziel-Monat der Abweichung *
+                        </label>
+                        <select id="exp-target-month" class="neu-inset-select" style="width: 100%; padding: 8px 12px; font-size: 0.88rem; font-weight: 700;">
+                            <option value="2026-01">Januar 2026</option>
+                            <option value="2026-02">Februar 2026</option>
+                            <option value="2026-03">März 2026</option>
+                            <option value="2026-04">April 2026</option>
+                            <option value="2026-05">Mai 2026</option>
+                            <option value="2026-06">Juni 2026</option>
+                            <option value="2026-07">Juli 2026</option>
+                            <option value="2026-08">August 2026</option>
+                            <option value="2026-09" selected>September 2026</option>
+                            <option value="2026-10">Oktober 2026</option>
+                            <option value="2026-11">November 2026</option>
+                            <option value="2026-12">Dezember 2026</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Beleg-Datum
+                        </label>
+                        <input type="text" id="exp-target-date" class="neu-input" placeholder="z. B. 15.03.2026" style="width: 100%;">
+                    </div>
+                </div>
+
+                <!-- Title -->
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Bezeichnung / Kostenblock *
+                    </label>
+                    <input type="text" id="exp-title-input" class="neu-input" placeholder="z. B. Reparatur Bagger oder Pflasterstein-Sonderposten" required style="width: 100%; font-size: 0.95rem; font-weight: 700;">
+                </div>
+
+                <!-- Category & Amount -->
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Kosten-Kategorie *
+                        </label>
+                        <select id="exp-category-input" class="neu-inset-select" style="width: 100%; padding: 8px 12px; font-size: 0.88rem;">
+                            <option value="Personalkosten">Personalkosten (Löhne & SV)</option>
+                            <option value="Fahrzeuge & Fuhrpark">Fahrzeuge & Fuhrpark (Diesel, Leasing)</option>
+                            <option value="Miete & Betriebsstätte">Miete & Betriebsstätte (Lager, Hof)</option>
+                            <option value="Werkzeuge & Maschinen">Werkzeuge & Maschinen (TÜV, Wartung)</option>
+                            <option value="Material & Sonderausgaben">Material & Sonderausgaben (Kies, Erde)</option>
+                            <option value="Versicherungen & Beiträge">Versicherungen & Beiträge</option>
+                            <option value="Büro & Beratung">Büro & Beratung (Steuerberater, IT)</option>
+                            <option value="Marketing & Werbung">Marketing & Werbung</option>
+                            <option value="Sonstige Ausgaben">Sonstige Ausgaben</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Betrag (€) *
+                        </label>
+                        <input type="number" step="0.01" min="0" id="exp-amount-input" class="neu-input" placeholder="0,00" required style="width: 100%; font-weight: 700; font-size: 1rem;">
+                    </div>
+                </div>
+
+                <!-- Tax Rate & Status -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Vorsteuer-Satz (MwSt)
+                        </label>
+                        <select id="exp-tax-rate-input" class="neu-inset-select" style="width: 100%; padding: 8px 12px; font-size: 0.88rem;">
+                            <option value="19">19% Regelvorsteuer</option>
+                            <option value="7">7% ermäßigt</option>
+                            <option value="0">0% steuerfrei / Löhne / Versicherung</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                            Zahlungs-Status
+                        </label>
+                        <select id="exp-status-input" class="neu-inset-select" style="width: 100%; padding: 8px 12px; font-size: 0.88rem;">
+                            <option value="paid">✓ Bezahlt / Abgebucht</option>
+                            <option value="planned">⏳ Geplant / Offen</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label style="display: block; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase;">
+                        Notizen / Begründung / Rechnungsnummer
+                    </label>
+                    <input type="text" id="exp-notes-input" class="neu-input" placeholder="z. B. Beleg-Nr. RE-2026-44, Baustelle Keltern" style="width: 100%;">
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+                    <button type="button" class="neu-btn neu-btn-danger" id="exp-delete-btn" onclick="handleDeleteCurrentExpense()" style="display: none; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>Ausgabe löschen</span>
+                    </button>
+                    <div style="display: flex; gap: 10px; margin-left: auto;">
+                        <button type="button" class="neu-btn" onclick="closeExpenseModal()">Abbrechen</button>
+                        <button type="submit" class="neu-btn neu-btn-primary">Ausgabe speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         ARBEITSZEITKONTO: NACHWEIS & MITARBEITER-KONTOAUSZUG MODAL
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="worktime-statement-modal" style="display: none; z-index: 10040;" onclick="if(event.target===this) closeWorktimeStatementModal()">
+        <div class="catalog-modal-window" style="max-width: 760px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header-bar" style="margin-bottom: 14px;">
+                <h2>Arbeitszeitkonto • Nachweis</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="printWorktimeStatementSheet()" style="padding: 6px 14px; font-size: 0.85rem;">
+                        🖨️ Drucken / PDF
+                    </button>
+                    <button type="button" class="neu-btn" onclick="closeWorktimeStatementModal()" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+                </div>
+            </div>
+
+            <div id="worktime-statement-sheet" style="background: #ffffff; padding: 24px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                <!-- Populated dynamically by openWorktimeStatement() -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         FINANZEN: MONATSRECHNUNG & ABRECHNUNGSBOGEN MODAL (DRUCK/PDF)
+         ==================================================================== -->
+    <div class="catalog-modal-backdrop" id="fin-monthly-statement-modal" style="display: none; z-index: 10042;" onclick="if(event.target===this) closeMonthlyStatementModal()">
+        <div class="catalog-modal-window" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header-bar" style="margin-bottom: 14px;">
+                <h2 id="fin-statement-modal-title">Monatsabrechnung • Abrechnungsjournal</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="neu-btn neu-btn-primary" onclick="printMonthlyStatementSheet()" style="padding: 6px 14px; font-size: 0.85rem;">
+                        🖨️ Drucken / PDF
+                    </button>
+                    <button type="button" class="neu-btn" onclick="closeMonthlyStatementModal()" style="padding: 6px 12px; font-size: 0.85rem;">✕</button>
+                </div>
+            </div>
+
+            <div id="fin-monthly-statement-content" style="background: #ffffff; padding: 24px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                <!-- Populated dynamically by openMonthlyStatementModal() -->
+            </div>
         </div>
     </div>
 

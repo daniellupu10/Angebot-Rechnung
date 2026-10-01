@@ -1295,20 +1295,20 @@ const SEED_INVOICES_ARCHIVE = [
 
 // ==========================================================================
 // DARLEHEN & KREDIT-MITTELVERWENDUNG (INITIALER SEED-SPEICHER)
-// BGA: 8.000 € • Betriebsmittel: 27.000 € • Auf-/Übernahme: 37.500 € (Gesamt: 72.500 €)
+// BGA: 8.000 € • Betriebsmittel: 34.500 € • Auf-/Übernahme: 30.000 € (Gesamt: 72.500 €)
 // ==========================================================================
 const DEFAULT_LOAN_DATA = {
     budgets: {
         bga: 8000.00,
-        betriebsmittel: 27000.00,
-        uebernahme: 37500.00
+        betriebsmittel: 34500.00,
+        uebernahme: 30000.00
     },
     entries: [
         {
             id: "loan-ent-1",
             date: "12.01.2026",
             pot: "uebernahme",
-            amount: 35000.00,
+            amount: 27500.00,
             purpose: "Geschäftsübernahme Kaufpreis Rate 1 (Kundenstamm, Firmenwert & Betriebsinventar)",
             receiptNo: "VERTRAG-2026-01",
             notes: "Notarieller Übernahmevertrag Palnau Gartenbau"
