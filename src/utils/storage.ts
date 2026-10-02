@@ -112,7 +112,7 @@ export function generateNextDocNumber(type: DocType, existingDocs: InvoiceDoc[])
   const prefix = type === 'rechnung' ? `RE-${year}-` : `ANG-${year}-`;
   const matching = existingDocs.filter(d => d.docNumber && d.docNumber.startsWith(prefix));
   
-  let maxNum = type === 'rechnung' ? 1049 : 320;
+  let maxNum = type === 'rechnung' ? 1068 : 318;
   matching.forEach(d => {
     const numPart = parseInt(d.docNumber.replace(prefix, ''), 10);
     if (!isNaN(numPart) && numPart > maxNum) {

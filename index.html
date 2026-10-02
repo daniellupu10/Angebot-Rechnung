@@ -2165,7 +2165,10 @@
                 <div class="doc-meta-section">
                     <div class="meta-row">
                         <strong id="doc-number-label">Rechnung Nr.:</strong>
-                        <input type="text" id="doc-meta-number" class="inline-meta-input" style="width: 145px; font-weight: 700;">
+                        <div style="display: inline-flex; align-items: center; gap: 3px;">
+                            <input type="text" id="doc-meta-number" class="inline-meta-input" style="width: 132px; font-weight: 700;" title="Dokumentennummer (steuerrechtlich fortlaufend nach § 14 UStG)">
+                            <button type="button" class="neu-btn" onclick="assignNextConsecutiveNumber()" style="padding: 2px 6px; font-size: 11px; border-radius: 4px;" title="Nächste freie fortlaufende Nummer vergeben (§ 14 UStG / GoBD)">⚡</button>
+                        </div>
                     </div>
                     <div class="meta-row">
                         <strong>Datum:</strong>
@@ -2959,11 +2962,14 @@
                     <div class="neu-form-group">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
                             <label for="convert-invoice-num" style="font-size: 0.85rem; font-weight: 700; color: #0f172a;">
-                                Neue Rechnungsnummer
+                                Neue Rechnungsnummer (fortlaufend)
                             </label>
-                            <button type="button" class="convert-date-quick-btn" onclick="generateNewConvertInvoiceNum()" style="padding: 2px 8px; font-size: 0.72rem;">Neu generieren</button>
+                            <button type="button" class="convert-date-quick-btn" onclick="generateNewConvertInvoiceNum()" style="padding: 2px 8px; font-size: 0.72rem;" title="Nächste freie fortlaufende Nummer ermitteln">⚡ Fortlaufend neu laden</button>
                         </div>
                         <input type="text" id="convert-invoice-num" class="neu-input" required style="width: 100%; box-sizing: border-box; padding: 9px 12px; font-weight: 600; font-family: monospace;" placeholder="RE-2026-XXXX">
+                        <div style="font-size: 0.75rem; color: #059669; margin-top: 4px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                            <span>✓ Steuerrechtlich konform nach § 14 UStG / GoBD</span>
+                        </div>
                     </div>
 
                     <!-- Service Period -->

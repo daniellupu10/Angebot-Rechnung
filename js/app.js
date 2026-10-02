@@ -64,13 +64,124 @@ let appState = {
 let modalActiveCategory = "all";
 let modalSearchTerm = "";
 
-// Helpers
-function generateDocNumber(type) {
-    const prefix = type === "angebot" ? "ANG" : "RE";
-    const year = new Date().getFullYear();
-    const seq = Math.floor(1000 + Math.random() * 9000);
-    return `${prefix}-${year}-${seq}`;
+// Helpers & Steuerrechtlich konforme, fortlaufende Nummernvergabe (§ 14 UStG / GoBD)
+function getNextConsecutiveDocNumber(type = "rechnung", targetYear = null) {
+    const isQuote = (type === "angebot");
+    const prefix = isQuote ? "ANG" : "RE";
+
+    // 1. Zieljahr ermitteln
+    let yr = targetYear;
+    if (!yr) {
+        try {
+            if (typeof window !== 'undefined' && window.appState && window.appState.docDate) {
+                if (typeof parseGermanDate === 'function') {
+                    const parsed = parseGermanDate(window.appState.docDate);
+                    if (parsed && !isNaN(parsed.getFullYear())) {
+                        yr = parsed.getFullYear();
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+    if (!yr || isNaN(yr)) {
+        yr = new Date().getFullYear();
+    }
+
+    // 2. Basiszahlen nach Stamm-Archiv Palnau Gartenbau GmbH:
+    // Für 2026 ist RE-2026-1068 der höchste Bestandswert (Angebote bis ANG-2026-0318)
+    // Für 2025 bis RE-2025-0988
+    let baselineMax = 0;
+    if (isQuote) {
+        baselineMax = (yr === 2026) ? 318 : (yr === 2025 ? 200 : 300);
+    } else {
+        baselineMax = (yr === 2026) ? 1068 : (yr === 2025 ? 988 : 1000);
+    }
+    let maxNum = baselineMax;
+
+    // 3. Archiv & Seeds scannen
+    let allDocs = [];
+    if (typeof getInvoicesArchive === 'function') {
+        try {
+            allDocs = getInvoicesArchive() || [];
+        } catch (e) {
+            allDocs = [];
+        }
+    }
+    if (typeof SEED_INVOICES_ARCHIVE !== 'undefined' && Array.isArray(SEED_INVOICES_ARCHIVE)) {
+        allDocs = allDocs.concat(SEED_INVOICES_ARCHIVE);
+    }
+    if (typeof SEED_QUOTES_ARCHIVE !== 'undefined' && Array.isArray(SEED_QUOTES_ARCHIVE)) {
+        allDocs = allDocs.concat(SEED_QUOTES_ARCHIVE);
+    }
+
+    // 4. Sequenz-Tracker im LocalStorage prüfen (Schutz gegen Lücken oder gelöschte Belege)
+    const trackerKey = isQuote ? `palnau_last_quote_seq_${yr}` : `palnau_last_invoice_seq_${yr}`;
+    try {
+        const storedSeq = parseInt(localStorage.getItem(trackerKey) || '0', 10);
+        if (!isNaN(storedSeq) && storedSeq > maxNum) {
+            maxNum = storedSeq;
+        }
+    } catch (e) {}
+
+    // 5. Alle archivierten Belege nach Nummern scannen
+    const regex = new RegExp(`^${prefix}-${yr}-(\\d+)`, 'i');
+    allDocs.forEach(doc => {
+        if (!doc) return;
+        const docType = doc.docType || (String(doc.docNumber || doc.id).startsWith('ANG-') ? 'angebot' : 'rechnung');
+        if (isQuote && docType !== 'angebot') return;
+        if (!isQuote && docType === 'angebot') return;
+
+        const docNum = String(doc.docNumber || doc.id || '');
+        const match = docNum.match(regex);
+        if (match && match[1]) {
+            const numPart = parseInt(match[1], 10);
+            if (!isNaN(numPart)) {
+                // Bei Rechnungen für das Jahr 2026 Ausreißer außerhalb der realen Betriebsfolge filtern
+                if (!isQuote) {
+                    if (numPart >= 1000 && numPart < 20000) {
+                        if (numPart > maxNum) maxNum = numPart;
+                    }
+                } else {
+                    if (numPart >= 100 && numPart < 10000) {
+                        if (numPart > maxNum) maxNum = numPart;
+                    }
+                }
+            }
+        }
+    });
+
+    const nextSeq = maxNum + 1;
+    const formatted = `${prefix}-${yr}-${String(nextSeq).padStart(4, '0')}`;
+    return formatted;
 }
+
+function persistLastDocNumberSequence(type, docNumber) {
+    if (!docNumber) return;
+    const isQuote = (type === 'angebot') || String(docNumber).startsWith('ANG-');
+    const prefix = isQuote ? 'ANG' : 'RE';
+    const regex = new RegExp(`^${prefix}-(\\d{4})-(\\d+)`, 'i');
+    const match = String(docNumber).match(regex);
+    if (match && match[1] && match[2]) {
+        const yr = parseInt(match[1], 10);
+        const seq = parseInt(match[2], 10);
+        if (!isNaN(yr) && !isNaN(seq)) {
+            const trackerKey = isQuote ? `palnau_last_quote_seq_${yr}` : `palnau_last_invoice_seq_${yr}`;
+            try {
+                const current = parseInt(localStorage.getItem(trackerKey) || '0', 10);
+                if (isNaN(current) || seq > current) {
+                    localStorage.setItem(trackerKey, String(seq));
+                }
+            } catch (e) {}
+        }
+    }
+}
+
+function generateDocNumber(type, targetYear) {
+    return getNextConsecutiveDocNumber(type, targetYear);
+}
+window.getNextConsecutiveDocNumber = getNextConsecutiveDocNumber;
+window.generateDocNumber = generateDocNumber;
+window.persistLastDocNumberSequence = persistLastDocNumberSequence;
 
 function formatDateForGermanDisplay(date) {
     const d = new Date(date);
@@ -294,6 +405,18 @@ function initApp() {
                     }
                 ];
             }
+            // Falls ein ungebuchter Neuentwurf (ohne Archiv-ID) vorliegt, sicherstellen, dass er eine fortlaufende Rechnungsnummer besitzt
+            if (!appState.activeArchiveId && appState.docType === 'rechnung') {
+                const archive = (typeof getInvoicesArchive === 'function') ? getInvoicesArchive() : [];
+                const isInArchive = archive.some(i => i.docNumber === appState.docNumber);
+                if (!isInArchive) {
+                    const nextNum = getNextConsecutiveDocNumber('rechnung');
+                    if (!appState.docNumber || !appState.docNumber.startsWith('RE-')) {
+                        appState.docNumber = nextNum;
+                        saveState();
+                    }
+                }
+            }
         } catch (e) {
             console.warn("Could not load draft, resetting", e);
             startCleanState();
@@ -306,7 +429,7 @@ function initApp() {
 function startCleanState(emptyAll = false) {
     appState = {
         docType: "rechnung",
-        docNumber: generateDocNumber("rechnung"),
+        docNumber: getNextConsecutiveDocNumber("rechnung"),
         docDate: formatDateForGermanDisplay(new Date()),
         servicePeriod: getCurrentMonthGerman(),
         taxRate: 19,
@@ -363,16 +486,18 @@ function setDocType(type) {
     appState.docType = type;
 
     if (type === "angebot") {
-        appState.docNumber = appState.docNumber.replace(/^RE-/, 'ANG-');
-        if (!appState.docNumber.startsWith('ANG-')) {
-            appState.docNumber = generateDocNumber("angebot");
+        if (!appState.docNumber || !appState.docNumber.startsWith('ANG-') || oldType === 'rechnung') {
+            appState.docNumber = getNextConsecutiveDocNumber("angebot");
         }
         appState.notesText = "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
     } else {
-        appState.docNumber = appState.docNumber.replace(/^ANG-/, 'RE-');
-        if (!appState.docNumber.startsWith('RE-')) {
-            appState.docNumber = generateDocNumber("rechnung");
+        // Steuerrechtlich konform (§ 14 UStG / GoBD):
+        // Jede Rechnung MUSS eine eigenständige, fortlaufende Rechnungsnummer erhalten!
+        // Niemals einfach ANG- durch RE- ersetzen.
+        if (oldType === 'angebot' || !appState.docNumber || !appState.docNumber.startsWith('RE-')) {
+            appState.docNumber = getNextConsecutiveDocNumber("rechnung");
         }
+        persistLastDocNumberSequence('rechnung', appState.docNumber);
         appState.notesText = "Bitte überweisen Sie den Rechnungsbetrag innerhalb von 7 Tagen ab Rechnungsdatum ohne Abzug auf unser unten genanntes Bankkonto unter Angabe der Rechnungsnummer als Verwendungszweck.";
 
         // If an offer loaded from archive is turned into an invoice, delete the old offer from the archive
@@ -394,7 +519,7 @@ function setDocType(type) {
 
     renderAll();
     saveState();
-    showToast(`Umschaltung: ${type === 'angebot' ? 'Angebot' : 'Rechnung'}`);
+    showToast(`Umschaltung: ${type === 'angebot' ? 'Angebot' : 'Rechnung'} (${appState.docNumber})`);
 }
 
 // Quick Notes Preset Helper (Exposed globally)
@@ -2288,6 +2413,7 @@ window.saveCurrentInvoiceToArchive = function(notifyUser = true) {
     };
 
     saveInvoiceToArchive(invoiceRecord);
+    persistLastDocNumberSequence(invoiceRecord.docType, invoiceRecord.docNumber);
     saveState();
 
     // Update status badge
@@ -2475,21 +2601,24 @@ window.editInvoiceInGenerator = function(invoiceId) {
 window.createNewInvoiceInGenerator = function() {
     startCleanState();
     appState.activeArchiveId = null;
+    appState.docType = "rechnung";
+    appState.docNumber = getNextConsecutiveDocNumber("rechnung");
+    saveState();
     const badge = document.getElementById('gen-active-status-badge');
     if (badge) {
-        badge.textContent = "Modus: Neuer Beleg";
-        badge.style.borderColor = '';
-        badge.style.color = '';
+        badge.textContent = `Neue Rechnung: ${appState.docNumber}`;
+        badge.style.borderColor = '#10b981';
+        badge.style.color = '#10b981';
     }
     switchAppView('generator');
-    showToast("Neues Rechnungsformular geöffnet.");
+    showToast(`Neues Rechnungsformular geöffnet (${appState.docNumber}).`);
 };
 
 window.createNewQuoteInGenerator = function() {
     startCleanState();
     appState.activeArchiveId = null;
     appState.docType = "angebot";
-    appState.docNumber = generateDocNumber("angebot");
+    appState.docNumber = getNextConsecutiveDocNumber("angebot");
     appState.docDate = formatDateForGermanDisplay(new Date());
     appState.servicePeriod = "Gültig 30 Tage ab Ausstellungsdatum";
     appState.notesText = "Wir freuen uns über Ihr Interesse. Dieses Angebot ist freibleibend und 30 Tage ab Ausstellungsdatum gültig.";
@@ -4432,8 +4561,34 @@ window.handleDocDateChange = function(val) {
     if (dateInput && dateInput.value !== norm) {
         dateInput.value = norm;
     }
+
+    // Wenn neuer ungebuchter Beleg: Bei Jahreswechsel im Datum fortlaufende Nummer für das Zieljahr anpassen
+    if (!appState.activeArchiveId) {
+        const d = parseGermanDate(norm);
+        if (d && !isNaN(d.getFullYear())) {
+            const yr = d.getFullYear();
+            const prefix = (appState.docType === 'angebot') ? `ANG-${yr}-` : `RE-${yr}-`;
+            if (appState.docNumber && !appState.docNumber.startsWith(prefix)) {
+                appState.docNumber = getNextConsecutiveDocNumber(appState.docType, yr);
+                const metaNum = document.getElementById('doc-meta-number');
+                if (metaNum) metaNum.value = appState.docNumber;
+            }
+        }
+    }
+
     renderCleanDocument();
     saveState();
+};
+
+window.assignNextConsecutiveNumber = function() {
+    const yr = appState.docDate ? parseGermanDate(appState.docDate).getFullYear() : new Date().getFullYear();
+    const nextNum = getNextConsecutiveDocNumber(appState.docType, yr);
+    appState.docNumber = nextNum;
+    const metaNum = document.getElementById('doc-meta-number');
+    if (metaNum) metaNum.value = nextNum;
+    renderCleanDocument();
+    saveState();
+    showToast(`Fortlaufende Nummer vergeben: ${nextNum} (steuerrechtlich konform)`);
 };
 
 window.openMetaDatePicker = function() {
@@ -4942,10 +5097,10 @@ window.openConvertToInvoiceModal = function(quoteId) {
     }
     updateConvertDateDisplay(todayGerman);
 
-    // Pre-fill next invoice document number
+    // Pre-fill next invoice document number (steuerrechtlich konform fortlaufend)
     const numInput = document.getElementById('convert-invoice-num');
     if (numInput) {
-        numInput.value = generateDocNumber("rechnung");
+        numInput.value = getNextConsecutiveDocNumber("rechnung");
     }
 
     // Pre-fill service period
@@ -5034,8 +5189,11 @@ window.setConvertDatePreset = function(preset) {
 
 window.generateNewConvertInvoiceNum = function() {
     const input = document.getElementById('convert-invoice-num');
+    const dateVal = document.getElementById('convert-invoice-date')?.value;
+    const yr = dateVal ? parseGermanDate(dateVal).getFullYear() : new Date().getFullYear();
     if (input) {
-        input.value = generateDocNumber("rechnung");
+        input.value = getNextConsecutiveDocNumber("rechnung", yr);
+        showToast(`Nächste fortlaufende Rechnungsnummer: ${input.value}`);
     }
 };
 
@@ -5061,11 +5219,15 @@ window.submitConvertToInvoice = function() {
     }
 
     const invoiceDateGerman = normalizeToGermanDate(inputDate);
-    const invoiceNumber = (numInput && numInput.value.trim()) ? numInput.value.trim() : generateDocNumber("rechnung");
+    const invoiceYear = parseGermanDate(invoiceDateGerman).getFullYear();
+    const invoiceNumber = (numInput && numInput.value.trim()) ? numInput.value.trim() : getNextConsecutiveDocNumber("rechnung", invoiceYear);
     const servicePeriod = (periodInput && periodInput.value.trim()) ? periodInput.value.trim() : getCurrentMonthGerman();
     const withReference = optRef ? optRef.checked : true;
     const markAsAccepted = optAccepted ? optAccepted.checked : true;
     const switchView = optSwitch ? optSwitch.checked : true;
+
+    // Steuerrechtliche Sequenz dauerhaft festhalten
+    persistLastDocNumberSequence('rechnung', invoiceNumber);
 
     // Build the new booked invoice
     const newInvoice = JSON.parse(JSON.stringify(activeQuoteForConversion));
