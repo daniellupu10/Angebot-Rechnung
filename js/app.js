@@ -87,14 +87,14 @@ function getNextConsecutiveDocNumber(type = "rechnung", targetYear = null) {
         yr = new Date().getFullYear();
     }
 
-    // 2. Basiszahlen nach Stamm-Archiv Palnau Gartenbau GmbH:
-    // Für 2026 ist RE-2026-1068 der höchste Bestandswert (Angebote bis ANG-2026-0318)
-    // Für 2025 bis RE-2025-0988
+    // 2. Basiszahlen nach Vorgabe der Steuerkanzlei Palnau Gartenbau GmbH:
+    // Für 2026 soll die Rechnungsreihe nun lückenlos und fortlaufend bei RE-2026-168 beginnen!
+    // Basiswert ist daher 167 (so dass die nächste Rechnung genau 168 ergibt).
     let baselineMax = 0;
     if (isQuote) {
         baselineMax = (yr === 2026) ? 318 : (yr === 2025 ? 200 : 300);
     } else {
-        baselineMax = (yr === 2026) ? 1068 : (yr === 2025 ? 988 : 1000);
+        baselineMax = (yr === 2026) ? 167 : (yr === 2025 ? 988 : 100);
     }
     let maxNum = baselineMax;
 
@@ -107,19 +107,27 @@ function getNextConsecutiveDocNumber(type = "rechnung", targetYear = null) {
             allDocs = [];
         }
     }
-    if (typeof SEED_INVOICES_ARCHIVE !== 'undefined' && Array.isArray(SEED_INVOICES_ARCHIVE)) {
-        allDocs = allDocs.concat(SEED_INVOICES_ARCHIVE);
-    }
-    if (typeof SEED_QUOTES_ARCHIVE !== 'undefined' && Array.isArray(SEED_QUOTES_ARCHIVE)) {
+    // Seeds nur für Angebote oder ältere Jahre heranziehen
+    if (isQuote && typeof SEED_QUOTES_ARCHIVE !== 'undefined' && Array.isArray(SEED_QUOTES_ARCHIVE)) {
         allDocs = allDocs.concat(SEED_QUOTES_ARCHIVE);
+    }
+    if (!isQuote && yr !== 2026 && typeof SEED_INVOICES_ARCHIVE !== 'undefined' && Array.isArray(SEED_INVOICES_ARCHIVE)) {
+        allDocs = allDocs.concat(SEED_INVOICES_ARCHIVE);
     }
 
     // 4. Sequenz-Tracker im LocalStorage prüfen (Schutz gegen Lücken oder gelöschte Belege)
     const trackerKey = isQuote ? `palnau_last_quote_seq_${yr}` : `palnau_last_invoice_seq_${yr}`;
     try {
         const storedSeq = parseInt(localStorage.getItem(trackerKey) || '0', 10);
-        if (!isNaN(storedSeq) && storedSeq > maxNum) {
-            maxNum = storedSeq;
+        if (!isNaN(storedSeq)) {
+            if (!isQuote && yr === 2026) {
+                // Für 2026 nur Sequenzen der aktiven Steuerkanzlei-Reihe ab 168 berücksichtigen (alte Testwerte >= 1000 ignorieren)
+                if (storedSeq >= 168 && storedSeq < 1000) {
+                    if (storedSeq > maxNum) maxNum = storedSeq;
+                }
+            } else if (storedSeq > maxNum) {
+                maxNum = storedSeq;
+            }
         }
     } catch (e) {}
 
@@ -136,10 +144,15 @@ function getNextConsecutiveDocNumber(type = "rechnung", targetYear = null) {
         if (match && match[1]) {
             const numPart = parseInt(match[1], 10);
             if (!isNaN(numPart)) {
-                // Bei Rechnungen für das Jahr 2026 Ausreißer außerhalb der realen Betriebsfolge filtern
                 if (!isQuote) {
-                    if (numPart >= 1000 && numPart < 20000) {
-                        if (numPart > maxNum) maxNum = numPart;
+                    if (yr === 2026) {
+                        // Steuerkanzlei-Reihe 2026: Fortlaufend ab 168 (168, 169, 170...)
+                        // Alte Belege im 1000er Bereich (z.B. 1025-1069) blockieren die 168er-Reihe nicht
+                        if (numPart >= 168 && numPart < 1000) {
+                            if (numPart > maxNum) maxNum = numPart;
+                        }
+                    } else if (numPart > maxNum && numPart < 20000) {
+                        maxNum = numPart;
                     }
                 } else {
                     if (numPart >= 100 && numPart < 10000) {
@@ -151,7 +164,9 @@ function getNextConsecutiveDocNumber(type = "rechnung", targetYear = null) {
     });
 
     const nextSeq = maxNum + 1;
-    const formatted = `${prefix}-${yr}-${String(nextSeq).padStart(4, '0')}`;
+    // Formatierung: Für 2026-Rechnungen exakt wie vom Nutzer und der Steuerkanzlei vorgegeben: RE-2026-168, RE-2026-169 etc.
+    const seqStr = (!isQuote && yr === 2026) ? String(nextSeq) : (nextSeq >= 1000 ? String(nextSeq) : String(nextSeq).padStart(4, '0'));
+    const formatted = `${prefix}-${yr}-${seqStr}`;
     return formatted;
 }
 
@@ -165,10 +180,14 @@ function persistLastDocNumberSequence(type, docNumber) {
         const yr = parseInt(match[1], 10);
         const seq = parseInt(match[2], 10);
         if (!isNaN(yr) && !isNaN(seq)) {
+            // Alte 1000er-Testwerte für 2026 ignorieren
+            if (!isQuote && yr === 2026 && seq >= 1000) {
+                return;
+            }
             const trackerKey = isQuote ? `palnau_last_quote_seq_${yr}` : `palnau_last_invoice_seq_${yr}`;
             try {
                 const current = parseInt(localStorage.getItem(trackerKey) || '0', 10);
-                if (isNaN(current) || seq > current) {
+                if (isNaN(current) || current >= 1000 || seq > current) {
                     localStorage.setItem(trackerKey, String(seq));
                 }
             } catch (e) {}
@@ -407,11 +426,19 @@ function initApp() {
             }
             // Falls ein ungebuchter Neuentwurf (ohne Archiv-ID) vorliegt, sicherstellen, dass er eine fortlaufende Rechnungsnummer besitzt
             if (!appState.activeArchiveId && appState.docType === 'rechnung') {
+                // Alte Test-Sequenzen >= 1000 aus vorherigen Sitzungen bereinigen
+                try {
+                    const storedTracker = parseInt(localStorage.getItem('palnau_last_invoice_seq_2026') || '0', 10);
+                    if (storedTracker >= 1000) {
+                        localStorage.removeItem('palnau_last_invoice_seq_2026');
+                    }
+                } catch (e) {}
+
                 const archive = (typeof getInvoicesArchive === 'function') ? getInvoicesArchive() : [];
                 const isInArchive = archive.some(i => i.docNumber === appState.docNumber);
                 if (!isInArchive) {
                     const nextNum = getNextConsecutiveDocNumber('rechnung');
-                    if (!appState.docNumber || !appState.docNumber.startsWith('RE-')) {
+                    if (!appState.docNumber || !appState.docNumber.startsWith('RE-') || appState.docNumber.startsWith('RE-2026-10') || appState.docNumber !== nextNum) {
                         appState.docNumber = nextNum;
                         saveState();
                     }

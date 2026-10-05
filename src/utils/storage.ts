@@ -112,16 +112,17 @@ export function generateNextDocNumber(type: DocType, existingDocs: InvoiceDoc[])
   const prefix = type === 'rechnung' ? `RE-${year}-` : `ANG-${year}-`;
   const matching = existingDocs.filter(d => d.docNumber && d.docNumber.startsWith(prefix));
   
-  let maxNum = type === 'rechnung' ? 1068 : 318;
+  let maxNum = type === 'rechnung' ? (year === 2026 ? 167 : 100) : 318;
   matching.forEach(d => {
     const numPart = parseInt(d.docNumber.replace(prefix, ''), 10);
-    if (!isNaN(numPart) && numPart > maxNum) {
+    if (!isNaN(numPart) && (type !== 'rechnung' || year !== 2026 || (numPart >= 168 && numPart < 1000)) && numPart > maxNum) {
       maxNum = numPart;
     }
   });
   
   const nextNum = maxNum + 1;
-  return `${prefix}${String(nextNum).padStart(4, '0')}`;
+  const numStr = (type === 'rechnung' && year === 2026) ? String(nextNum) : (nextNum >= 1000 ? String(nextNum) : String(nextNum).padStart(4, '0'));
+  return `${prefix}${numStr}`;
 }
 
 export function createNewDocument(type: DocType = 'rechnung', existingDocs: InvoiceDoc[] = []): InvoiceDoc {
