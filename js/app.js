@@ -1569,6 +1569,7 @@ function renderCleanDocument() {
                     <div class="clean-footer-row">Steuernummer: 41413-45017</div>
                     <div class="clean-footer-row">USt-IdNr.: Gemäß § 19 / § 14 UStG</div>
                     <div class="clean-footer-row">Finanzamt Pforzheim</div>
+                    <div class="clean-footer-row">HRB 759630 Mannheim</div>
                 </div>
                 <div>
                     <strong class="clean-footer-col-title">Geschäftsführer & Kontakt</strong>
@@ -2307,6 +2308,32 @@ window.getInvoicesArchive = function() {
     // Unveränderlicher Bezahlstatus-Schutz über die Registry
     const paidRegistry = getPaidInvoicesRegistry();
     let archiveModified = false;
+
+    // Migration: Falls noch Belege mit alten 1000er-Seednummern im LocalStorage liegen,
+    // diese nahtlos in die fortlaufende 2026-Steuerkanzlei-Reihe (162-167) überführen:
+    const LEGACY_ID_MAP = {
+        'RE-2026-1025': 'RE-2026-162',
+        'RE-2026-1038': 'RE-2026-163',
+        'RE-2026-1042': 'RE-2026-164',
+        'RE-2026-1049': 'RE-2026-165',
+        'RE-2026-1055': 'RE-2026-166',
+        'RE-2026-1068': 'RE-2026-167'
+    };
+
+    list.forEach(inv => {
+        if (inv && LEGACY_ID_MAP[inv.id]) {
+            inv.id = LEGACY_ID_MAP[inv.id];
+            archiveModified = true;
+        }
+        if (inv && LEGACY_ID_MAP[inv.docNumber]) {
+            inv.docNumber = LEGACY_ID_MAP[inv.docNumber];
+            archiveModified = true;
+        }
+        if (inv && inv.convertedInvoiceNumber && LEGACY_ID_MAP[inv.convertedInvoiceNumber]) {
+            inv.convertedInvoiceNumber = LEGACY_ID_MAP[inv.convertedInvoiceNumber];
+            archiveModified = true;
+        }
+    });
 
     list.forEach(inv => {
         const regEntry = paidRegistry[String(inv.id)] || (inv.docNumber && paidRegistry[String(inv.docNumber)]);
@@ -3887,7 +3914,7 @@ window.renderDunningLetterPreview = function() {
                 <strong style="color: #334155;">Steuerdaten:</strong><br>
                 Steuernummer: 41413-45017<br>
                 Finanzamt Pforzheim<br>
-                Amtsgericht Mannheim
+                HRB 759630 Mannheim
             </div>
             <div>
                 <strong style="color: #334155;">Geschäftsleitung & Kontakt:</strong><br>

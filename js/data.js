@@ -440,7 +440,7 @@ const ADDON_SERVICES = {
 // Beispielvorlagen
 const SAMPLE_INVOICE_DATA = {
     docType: "rechnung",
-    docNumber: "RE-2026-1042",
+    docNumber: "RE-2026-168",
     docDate: new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }),
     servicePeriod: "März 2026",
     client: {
@@ -753,7 +753,7 @@ const SEED_QUOTES_ARCHIVE = [
                 total: 855.00
             }
         ],
-        notesText: "Projekt Stadtvilla Pforzheim. Gültig bis 15.03.2026. Umgewandelt in Rechnung RE-2026-1049.",
+        notesText: "Projekt Stadtvilla Pforzheim. Gültig bis 15.03.2026. Umgewandelt in Rechnung RE-2026-165.",
         netTotal: 6930.00,
         taxAmount: 1316.70,
         grossTotal: 8246.70,
@@ -761,7 +761,7 @@ const SEED_QUOTES_ARCHIVE = [
         totalTax: 1316.70,
         totalGross: 8246.70,
         status: "angenommen",
-        convertedInvoiceNumber: "RE-2026-1049",
+        convertedInvoiceNumber: "RE-2026-165",
         convertedDate: "05.03.2026"
     }
 ];
@@ -772,9 +772,9 @@ const SEED_QUOTES_ARCHIVE = [
 // ==========================================================================
 const SEED_INVOICES_ARCHIVE = [
     {
-        id: "RE-2026-1042",
+        id: "RE-2026-164",
         docType: "rechnung",
-        docNumber: "RE-2026-1042",
+        docNumber: "RE-2026-164",
         docDate: "05.03.2026",
         dateIso: "2026-03-05",
         year: 2026,
@@ -843,9 +843,9 @@ const SEED_INVOICES_ARCHIVE = [
         paymentStatus: "offen"
     },
     {
-        id: "RE-2026-1038",
+        id: "RE-2026-163",
         docType: "rechnung",
-        docNumber: "RE-2026-1038",
+        docNumber: "RE-2026-163",
         docDate: "20.02.2026",
         dateIso: "2026-02-20",
         year: 2026,
@@ -898,9 +898,9 @@ const SEED_INVOICES_ARCHIVE = [
         paymentStatus: "offen"
     },
     {
-        id: "RE-2026-1025",
+        id: "RE-2026-162",
         docType: "rechnung",
-        docNumber: "RE-2026-1025",
+        docNumber: "RE-2026-162",
         docDate: "28.01.2026",
         dateIso: "2026-01-28",
         year: 2026,
@@ -946,9 +946,9 @@ const SEED_INVOICES_ARCHIVE = [
         status: "bezahlt"
     },
     {
-        id: "RE-2026-1055",
+        id: "RE-2026-166",
         docType: "rechnung",
-        docNumber: "RE-2026-1055",
+        docNumber: "RE-2026-166",
         docDate: "15.05.2026",
         dateIso: "2026-05-15",
         year: 2026,
@@ -992,9 +992,9 @@ const SEED_INVOICES_ARCHIVE = [
         status: "bezahlt"
     },
     {
-        id: "RE-2026-1049",
+        id: "RE-2026-165",
         docType: "rechnung",
-        docNumber: "RE-2026-1049",
+        docNumber: "RE-2026-165",
         docDate: "14.04.2026",
         dateIso: "2026-04-14",
         year: 2026,
@@ -1040,9 +1040,9 @@ const SEED_INVOICES_ARCHIVE = [
         status: "bezahlt"
     },
     {
-        id: "RE-2026-1068",
+        id: "RE-2026-167",
         docType: "rechnung",
-        docNumber: "RE-2026-1068",
+        docNumber: "RE-2026-167",
         docDate: "12.07.2026",
         dateIso: "2026-07-12",
         year: 2026,
